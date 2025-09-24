@@ -11,7 +11,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- Statistics Cards -->
+        <!-- Statistics Card -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -28,7 +28,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Expense Statistics"
+                    android:text="📈 Expense Statistics"
                     android:textSize="18sp"
                     android:textStyle="bold"
                     android:layout_marginBottom="12dp" />
@@ -60,66 +60,78 @@
 
         </androidx.cardview.widget.CardView>
 
-        <!-- Bar Chart Card -->
+        <!-- Budget Progress Card -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
-            android:layout_height="300dp"
+            android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
             app:cardCornerRadius="8dp"
             app:cardElevation="4dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="vertical">
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
 
                 <TextView
+                    android:id="@+id/budgetProgressText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Last 7 Days Spending"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:gravity="center"
-                    android:padding="8dp" />
-
-                <com.github.mikephil.charting.charts.BarChart
-                    android:id="@+id/barChart"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    android:padding="8dp" />
+                    android:text="💰 Budget Progress:\n\nLoading..."
+                    android:textSize="14sp"
+                    android:lineSpacingExtra="4dp" />
 
             </LinearLayout>
 
         </androidx.cardview.widget.CardView>
 
-        <!-- Pie Chart Card -->
+        <!-- Category Breakdown Card -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
-            android:layout_height="400dp"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
             app:cardCornerRadius="8dp"
             app:cardElevation="4dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="vertical">
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
 
                 <TextView
+                    android:id="@+id/categoryBreakdownText"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Spending by Category"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:gravity="center"
-                    android:padding="8dp" />
+                    android:text="📊 Category Breakdown:\n\nLoading..."
+                    android:textSize="14sp"
+                    android:lineSpacingExtra="4dp" />
 
-                <com.github.mikephil.charting.charts.PieChart
-                    android:id="@+id/pieChart"
+            </LinearLayout>
+
+        </androidx.cardview.widget.CardView>
+
+        <!-- Weekly Breakdown Card -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:id="@+id/weeklyBreakdownText"
                     android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    android:padding="8dp" />
+                    android:layout_height="wrap_content"
+                    android:text="📅 Last 7 Days:\n\nLoading..."
+                    android:textSize="14sp"
+                    android:lineSpacingExtra="4dp" />
 
             </LinearLayout>
 

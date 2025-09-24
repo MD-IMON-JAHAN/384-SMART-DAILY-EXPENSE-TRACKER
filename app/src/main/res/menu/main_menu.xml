@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res/android">
+    xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
         android:id="@+id/action_user_email"
@@ -9,8 +9,12 @@
 
     <item
         android:id="@+id/action_view_charts"
-        android:title="View Charts"
-        android:icon="@android:drawable/ic_menu_gallery"
+        android:title="Charts"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_ai_chat"
+        android:title="AI Chat"
         app:showAsAction="ifRoom" />
 
     <item

@@ -1,6 +1,6 @@
 package com.example.smartdailyexpensetracker
 
-import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -17,10 +17,11 @@ class ChartsActivity : AppCompatActivity() {
     private lateinit var mostSpentCategoryText: TextView
     private lateinit var categoryBreakdownText: TextView
     private lateinit var weeklyBreakdownText: TextView
+    private lateinit var budgetProgressText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_charts_simple)
+        setContentView(R.layout.activity_charts)
 
         // Initialize ViewModel
         expenseViewModel = ViewModelProvider(this)[ExpenseViewModel::class.java]
@@ -44,23 +45,28 @@ class ChartsActivity : AppCompatActivity() {
         mostSpentCategoryText = findViewById(R.id.mostSpentCategoryText)
         categoryBreakdownText = findViewById(R.id.categoryBreakdownText)
         weeklyBreakdownText = findViewById(R.id.weeklyBreakdownText)
+        budgetProgressText = findViewById(R.id.budgetProgressText)
     }
 
     private fun setupObservers() {
         expenseViewModel.expenses.observe(this) { expenses ->
-            if (expenses.isNotEmpty()) {
-                updateStatistics(expenses)
-                updateCategoryBreakdown(expenses)
-                updateWeeklyBreakdown(expenses)
-            } else {
-                showEmptyState()
+            expenseViewModel.budget.observe(this) { budget ->
+                if (expenses.isNotEmpty()) {
+                    updateStatistics(expenses, budget)
+                    updateCategoryBreakdown(expenses)
+                    updateWeeklyBreakdown(expenses)
+                    updateBudgetProgress(expenses, budget)
+                } else {
+                    showEmptyState()
+                }
             }
         }
 
         expenseViewModel.loadExpenses()
+        expenseViewModel.loadBudget()
     }
 
-    private fun updateStatistics(expenses: List<Expense>) {
+    private fun updateStatistics(expenses: List<Expense>, budget: Budget?) {
         val total = expenses.sumOf { it.amount }
         val days = getNumberOfDays(expenses)
         val averageDaily = if (days > 0) total / days else 0.0
@@ -71,9 +77,9 @@ class ChartsActivity : AppCompatActivity() {
         val mostSpentCategory = categoryTotals.maxByOrNull { it.value }?.key ?: "No data"
         val mostSpentAmount = categoryTotals.maxByOrNull { it.value }?.value ?: 0.0
 
-        totalSpentText.text = "Total Spent: $${String.format("%.2f", total)}"
-        averageDailyText.text = "Daily Average: $${String.format("%.2f", averageDaily)}"
-        mostSpentCategoryText.text = "Top Category: $mostSpentCategory ($${String.format("%.2f", mostSpentAmount)})"
+        totalSpentText.text = "Total Spent: $${"%.2f".format(total)}"
+        averageDailyText.text = "Daily Average: $${"%.2f".format(averageDaily)}"
+        mostSpentCategoryText.text = "Top Category: $mostSpentCategory ($${"%.2f".format(mostSpentAmount)})"
     }
 
     private fun updateCategoryBreakdown(expenses: List<Expense>) {
@@ -86,7 +92,7 @@ class ChartsActivity : AppCompatActivity() {
         categoryTotals.forEach { (category, total) ->
             val percentage = (total / expenses.sumOf { it.amount } * 100).toInt()
             val bar = "█".repeat((percentage / 5).coerceAtLeast(1))
-            breakdown.append("$bar $category: $${String.format("%.2f", total)} ($percentage%)\n\n")
+            breakdown.append("$bar $category: $${"%.2f".format(total)} ($percentage%)\n\n")
         }
 
         categoryBreakdownText.text = breakdown.toString()
@@ -112,10 +118,51 @@ class ChartsActivity : AppCompatActivity() {
             val total = dailyTotals[date] ?: 0.0
             val barLength = ((total / (dailyTotals.values.maxOrNull() ?: 1.0)) * 10).toInt().coerceAtLeast(1)
             val bar = "█".repeat(barLength)
-            breakdown.append("$bar $date: $${String.format("%.2f", total)}\n\n")
+            breakdown.append("$bar $date: $${"%.2f".format(total)}\n\n")
         }
 
         weeklyBreakdownText.text = breakdown.toString()
+    }
+
+    private fun updateBudgetProgress(expenses: List<Expense>, budget: Budget?) {
+        if (budget == null) {
+            budgetProgressText.text = "💰 Budget Progress:\n\nNo budget set yet"
+            return
+        }
+
+        val totalSpent = expenses.sumOf { it.amount }
+        val percentageUsed = (totalSpent / budget.monthlyBudget * 100).toInt()
+        val remaining = budget.monthlyBudget - totalSpent
+
+        val progressBar = when {
+            percentageUsed >= 100 -> "██████████" // Full bar if exceeded
+            else -> "█".repeat(percentageUsed / 10) + "░".repeat(10 - percentageUsed / 10)
+        }
+
+        val status = if (totalSpent > budget.monthlyBudget) {
+            "⚠️ EXCEEDED by $${"%.2f".format(totalSpent - budget.monthlyBudget)}"
+        } else {
+            "${100 - percentageUsed}% remaining"
+        }
+
+        val progressText = """
+            💰 Budget Progress:
+            
+            $progressBar $percentageUsed%
+            
+            Spent: $${"%.2f".format(totalSpent)} / $${"%.2f".format(budget.monthlyBudget)}
+            Remaining: $${"%.2f".format(remaining)}
+            Status: $status
+        """.trimIndent()
+
+        budgetProgressText.text = progressText
+
+        // Set color based on budget usage
+        when {
+            percentageUsed >= 100 -> budgetProgressText.setTextColor(Color.RED)
+            percentageUsed >= 75 -> budgetProgressText.setTextColor(Color.parseColor("#FFA500")) // Orange
+            else -> budgetProgressText.setTextColor(Color.GREEN)
+        }
     }
 
     private fun showEmptyState() {
@@ -124,6 +171,8 @@ class ChartsActivity : AppCompatActivity() {
         mostSpentCategoryText.text = "Top Category: No expenses yet"
         categoryBreakdownText.text = "📊 Category Breakdown:\n\nNo expenses to display"
         weeklyBreakdownText.text = "📅 Last 7 Days:\n\nNo expenses to display"
+        budgetProgressText.text = "💰 Budget Progress:\n\nNo data available"
+        budgetProgressText.setTextColor(Color.GRAY)
     }
 
     private fun getLast7Days(): List<String> {
