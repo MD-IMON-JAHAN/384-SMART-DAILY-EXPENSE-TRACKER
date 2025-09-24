@@ -8,7 +8,7 @@ class GeminiAIService {
     private val model by lazy {
         GenerativeModel(
             modelName = "gemini-1.5-flash",
-            apiKey = "xxxxxxxxxxxxxxxx" // Replace with your actual API key
+            apiKey = "AIzaSyDdGudeZ3-KgjDGjMetuxaaBjt0V6_IcKY" // Replace with your actual API key
         )
     }
 

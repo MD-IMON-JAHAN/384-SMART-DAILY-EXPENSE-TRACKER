@@ -23,7 +23,7 @@ class EditEntryDialog(
         val typeExpense = dialogView.findViewById<RadioButton>(R.id.editTypeExpense)
         val typeIncome = dialogView.findViewById<RadioButton>(R.id.editTypeIncome)
 
-        // Pre-fill
+        // Pre-fill current values
         titleInput.setText(entry.title)
         amountInput.setText(entry.amount.toString())
         categoryInput.setText(entry.category)
@@ -54,18 +54,39 @@ class EditEntryDialog(
                     return@setPositiveButton
                 }
 
+                if (newAmount <= 0) {
+                    Toast.makeText(context, "Please enter a positive amount", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+
                 viewModel.updateEntry(entry, newTitle, newAmount, newCategory, newType)
-                Toast.makeText(context, "Entry updated", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Entry updated successfully", Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel") { dialog, _ ->
                 dialog.dismiss()
             }
             .setNeutralButton("Delete") { dialog, _ ->
-                viewModel.deleteEntry(entry)
-                Toast.makeText(context, "Entry deleted", Toast.LENGTH_SHORT).show()
+                // Show confirmation before deletion
+                showDeleteConfirmation(entry)
                 dialog.dismiss()
             }
+            .show()
+    }
+
+    private fun showDeleteConfirmation(entry: Entry) {
+        AlertDialog.Builder(context)
+            .setTitle("Delete Entry")
+            .setMessage("Are you sure you want to delete '${entry.title}' ($${entry.amount})?")
+            .setPositiveButton("Delete") { dialog, _ ->
+                viewModel.deleteEntry(entry)
+                Toast.makeText(context, "Entry deleted successfully", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setIcon(android.R.drawable.ic_dialog_alert)
             .show()
     }
 }

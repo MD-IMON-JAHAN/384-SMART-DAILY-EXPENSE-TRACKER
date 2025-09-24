@@ -49,10 +49,12 @@ class EntryAdapter(
             holder.typeIndicator.setTextColor(Color.RED)
         }
 
+        // Click listener for editing
         holder.itemView.setOnClickListener {
             onItemClick(entry)
         }
 
+        // Long click listener for deletion confirmation
         holder.itemView.setOnLongClickListener {
             onItemLongClick(entry)
         }

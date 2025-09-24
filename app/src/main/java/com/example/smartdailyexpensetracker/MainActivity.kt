@@ -7,7 +7,12 @@ import android.os.Bundle
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
-import android.widget.*
+import android.widget.Button
+import android.widget.EditText
+import android.widget.ProgressBar
+import android.widget.RadioButton
+import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -21,7 +26,7 @@ import com.google.firebase.ktx.Firebase
 class MainActivity : AppCompatActivity() {
     private val expenseViewModel: ExpenseViewModel by viewModels()
     private val auth = Firebase.auth
-    private var budgetWarningShown = false
+    private var budgetWarningShown = false // Prevent duplicate warnings
 
     private lateinit var entryTitle: EditText
     private lateinit var entryAmount: EditText
@@ -48,9 +53,14 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        setSupportActionBar(findViewById(R.id.toolbar))
+        // Set Toolbar as ActionBar for menu and theme support
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
+        setSupportActionBar(toolbar)
+
+        // Apply saved theme preference
         applySavedTheme()
 
+        // Check if user is logged in
         if (auth.currentUser == null) {
             startActivity(Intent(this, LoginActivity::class.java))
             finish()
@@ -65,11 +75,17 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
-        menu.findItem(R.id.action_user_email).title = auth.currentUser?.email ?: "User"
+
+        // Add user email to menu
+        val userItem = menu.findItem(R.id.action_user_email)
+        val currentUser = auth.currentUser
+        userItem.title = currentUser?.email ?: "User"
+
         return true
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        Log.d(TAG, "Menu item clicked: ${item.itemId}")
         return when (item.itemId) {
             R.id.action_sign_out -> {
                 signOut()
@@ -84,7 +100,8 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             R.id.action_theme_toggle -> {
-                toggleTheme(!isDarkModeEnabled())
+                val currentDarkMode = isDarkModeEnabled()
+                toggleTheme(!currentDarkMode)
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -115,32 +132,46 @@ class MainActivity : AppCompatActivity() {
     private fun setupRecyclerView() {
         entryAdapter = EntryAdapter(
             emptyList(),
-            onItemClick = { entry -> EditEntryDialog(this, entry, expenseViewModel).show() },
-            onItemLongClick = { entry -> showDeleteConfirmation(entry); true }
+            onItemClick = { entry -> showEditDialog(entry) },
+            onItemLongClick = { entry ->
+                showDeleteConfirmation(entry)
+                true
+            }
         )
         entriesRecyclerView.layoutManager = LinearLayoutManager(this)
         entriesRecyclerView.adapter = entryAdapter
     }
 
     private fun setupButtonListeners() {
-        addEntryButton.setOnClickListener { addNewEntry() }
-        setBudgetButton.setOnClickListener { showBudgetDialog() }
-        aiAdviceButton.setOnClickListener { expenseViewModel.getAIAdvice() }
+        addEntryButton.setOnClickListener {
+            addNewEntry()
+        }
+
+        setBudgetButton.setOnClickListener {
+            showBudgetDialog()
+        }
+
+        aiAdviceButton.setOnClickListener {
+            expenseViewModel.getAIAdvice()
+        }
     }
 
     private fun setupObservers() {
         expenseViewModel.entries.observe(this) { entries ->
             entryAdapter = EntryAdapter(
                 entries,
-                onItemClick = { entry -> EditEntryDialog(this, entry, expenseViewModel).show() },
-                onItemLongClick = { entry -> showDeleteConfirmation(entry); true }
+                onItemClick = { entry -> showEditDialog(entry) },
+                onItemLongClick = { entry ->
+                    showDeleteConfirmation(entry)
+                    true
+                }
             )
             entriesRecyclerView.adapter = entryAdapter
             updateTotalBalance()
             updateBudgetStatus()
         }
 
-        expenseViewModel.budget.observe(this) {
+        expenseViewModel.budget.observe(this) { budget ->
             updateBudgetStatus()
             checkForBudgetWarnings()
         }
@@ -187,7 +218,9 @@ class MainActivity : AppCompatActivity() {
                 }
                 dialog.dismiss()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+            }
             .show()
     }
 
@@ -200,15 +233,19 @@ class MainActivity : AppCompatActivity() {
             budgetStatusTextView.setTextColor(Color.GRAY)
         } else {
             val remaining = budget.monthlyBudget - totalExpenses
-            val percentage = if (budget.monthlyBudget > 0)
-                (totalExpenses / budget.monthlyBudget) * 100 else 0.0
+            val percentage = if (budget.monthlyBudget > 0) {
+                (totalExpenses / budget.monthlyBudget) * 100
+            } else {
+                0.0
+            }
 
             val statusText = if (remaining >= 0) {
                 "Budget: $${"%.2f".format(totalExpenses)} / $${"%.2f".format(budget.monthlyBudget)} | " +
                         "Remaining: $${"%.2f".format(remaining)} (${"%.1f".format(percentage)}%)"
             } else {
+                val overspent = -remaining
                 "Budget: $${"%.2f".format(totalExpenses)} / $${"%.2f".format(budget.monthlyBudget)} | " +
-                        "Overspent: $${"%.2f".format(-remaining)} (${"%.1f".format(percentage)}%)"
+                        "Overspent: $${"%.2f".format(overspent)} (${"%.1f".format(percentage)}%)"
             }
 
             budgetStatusTextView.text = statusText
@@ -236,12 +273,15 @@ class MainActivity : AppCompatActivity() {
     private fun showBudgetWarning(total: Double, budget: Double) {
         AlertDialog.Builder(this)
             .setTitle("⚠️ Budget Exceeded!")
-            .setMessage("You've spent $${"%.2f".format(total)} which exceeds your budget of $${"%.2f".format(budget)}. Would you like AI advice?")
+            .setMessage("You've spent $${"%.2f".format(total)} which exceeds your budget of $${"%.2f".format(budget)}. " +
+                    "Would you like AI advice?")
             .setPositiveButton("Get AI Advice") { _, _ ->
                 expenseViewModel.getAIAdvice()
             }
-            .setNegativeButton("Later", null)
-            .setOnDismissListener { budgetWarningShown = false }
+            .setNegativeButton("Later") { _, _ -> }
+            .setOnDismissListener {
+                budgetWarningShown = false
+            }
             .show()
     }
 
@@ -249,26 +289,34 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("🤖 AI Financial Advice")
             .setMessage(advice)
-            .setPositiveButton("OK", null)
+            .setPositiveButton("OK") { dialog, _ ->
+                dialog.dismiss()
+            }
             .setNeutralButton("Chat with AI") { _, _ ->
                 startActivity(Intent(this, ChatActivity::class.java))
             }
             .show()
     }
 
+    private fun showEditDialog(entry: Entry) {
+        EditEntryDialog(this, entry, expenseViewModel).show()
+    }
+
     private fun showDeleteConfirmation(entry: Entry) {
         AlertDialog.Builder(this)
             .setTitle("Delete Entry")
-            .setMessage("Are you sure you want to delete '${entry.title}'?")
+            .setMessage("Are you sure you want to delete '${entry.title}' ($${entry.amount})?")
             .setPositiveButton("Delete") { _, _ ->
                 expenseViewModel.deleteEntry(entry)
-                Toast.makeText(this, "Entry deleted", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Entry deleted successfully", Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .setIcon(android.R.drawable.ic_dialog_alert)
             .show()
     }
 
-    // ✅ Updated and improved version of addNewEntry()
     private fun addNewEntry() {
         val title = entryTitle.text.toString().trim()
         val amountText = entryAmount.text.toString().trim()
@@ -294,7 +342,7 @@ class MainActivity : AppCompatActivity() {
 
         expenseViewModel.addEntry(title, amount, category, type)
 
-        // Clear inputs after successful entry
+        // Clear input fields
         entryTitle.text.clear()
         entryAmount.text.clear()
         entryCategory.text.clear()
@@ -306,23 +354,25 @@ class MainActivity : AppCompatActivity() {
     private fun updateTotalBalance() {
         val totalBalance = expenseViewModel.getTotalBalance()
         totalBalanceTextView.text = "Total Balance: $${"%.2f".format(totalBalance)}"
+        // Set color based on balance
+        totalBalanceTextView.setTextColor(if (totalBalance >= 0) Color.GREEN else Color.RED)
     }
 
     private fun applySavedTheme() {
-        val isDarkMode = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getBoolean(KEY_DARK_MODE, false)
-
+        val sharedPrefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val isDarkMode = sharedPrefs.getBoolean(KEY_DARK_MODE, false)
         AppCompatDelegate.setDefaultNightMode(
             if (isDarkMode) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
         )
     }
 
     private fun isDarkModeEnabled(): Boolean {
-        return getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getBoolean(KEY_DARK_MODE, false)
+        val sharedPrefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return sharedPrefs.getBoolean(KEY_DARK_MODE, false)
     }
 
     private fun toggleTheme(isDarkMode: Boolean) {
+        Log.d(TAG, "Toggling theme to: ${if (isDarkMode) "Dark" else "Light"}")
         AppCompatDelegate.setDefaultNightMode(
             if (isDarkMode) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
         )
