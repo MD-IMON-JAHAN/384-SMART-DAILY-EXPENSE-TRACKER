@@ -22,13 +22,6 @@ class ExpenseRepository {
         private const val TAG = "ExpenseRepository"
     }
 
-    fun clear() {
-        // Clear any cached data if needed
-    }
-    fun enableNetwork() {
-        db.enableNetwork()
-    }
-
     private fun getCurrentMonthYear(): String {
         val format = SimpleDateFormat("yyyy-MM", Locale.getDefault())
         return format.format(Date())
@@ -75,7 +68,7 @@ class ExpenseRepository {
             )
 
             val result = entriesCollection.add(entryData).await()
-            updateBudgetSpending(currentUser.uid, entry.amount, entry.type)
+            updateBudgetSpending(currentUser.uid)
             result.id
         } catch (e: Exception) {
             Log.e(TAG, "Error adding entry", e)
@@ -83,7 +76,7 @@ class ExpenseRepository {
         }
     }
 
-    suspend fun updateEntry(entry: Entry, oldAmount: Double? = null): Boolean {
+    suspend fun updateEntry(entry: Entry): Boolean {
         return try {
             val entryData = hashMapOf(
                 "title" to entry.title,
@@ -95,15 +88,7 @@ class ExpenseRepository {
             )
 
             entriesCollection.document(entry.id).update(entryData.toMap()).await()
-
-            if (oldAmount != null && oldAmount != entry.amount) {
-                val currentUser = auth.currentUser
-                if (currentUser != null) {
-                    val difference = entry.amount - oldAmount
-                    updateBudgetSpending(currentUser.uid, difference, entry.type)
-                }
-            }
-
+            updateBudgetSpending(entry.userId)
             true
         } catch (e: Exception) {
             Log.e(TAG, "Error updating entry", e)
@@ -114,12 +99,7 @@ class ExpenseRepository {
     suspend fun deleteEntry(entry: Entry): Boolean {
         return try {
             entriesCollection.document(entry.id).delete().await()
-
-            val currentUser = auth.currentUser
-            if (currentUser != null) {
-                updateBudgetSpending(currentUser.uid, -entry.amount, entry.type)
-            }
-
+            updateBudgetSpending(entry.userId)
             true
         } catch (e: Exception) {
             Log.e(TAG, "Error deleting entry", e)
@@ -135,7 +115,6 @@ class ExpenseRepository {
             val budgetData = hashMapOf(
                 "userId" to currentUser.uid,
                 "monthlyBudget" to amount,
-                "currentSpending" to 0.0,
                 "monthYear" to monthYear,
                 "createdAt" to FieldValue.serverTimestamp()
             )
@@ -162,7 +141,7 @@ class ExpenseRepository {
                     id = document.id,
                     userId = document.getString("userId") ?: "",
                     monthlyBudget = document.getDouble("monthlyBudget") ?: 0.0,
-                    currentSpending = document.getDouble("currentSpending") ?: 0.0,
+                    currentSpending = 0.0, // We'll calculate this separately
                     monthYear = document.getString("monthYear") ?: monthYear
                 )
             } else {
@@ -174,7 +153,7 @@ class ExpenseRepository {
         }
     }
 
-    private suspend fun updateBudgetSpending(userId: String, amount: Double, type: String) {
+    private suspend fun updateBudgetSpending(userId: String) {
         try {
             val monthYear = getCurrentMonthYear()
             val budgetDoc = budgetsCollection.document("${userId}_$monthYear")
@@ -222,14 +201,16 @@ class ExpenseRepository {
 
     suspend fun saveChatMessage(message: ChatMessage): Boolean {
         return try {
+            val currentUser = auth.currentUser ?: return false
+
             val chatData = hashMapOf(
-                "userId" to message.userId,
+                "userId" to currentUser.uid,
                 "message" to message.message,
                 "isUser" to message.isUser,
-                "timestamp" to Timestamp.now()  // Client-side for immediate consistency
+                "timestamp" to Timestamp.now()
             )
 
-            chatCollection.document(message.userId)
+            chatCollection.document(currentUser.uid)
                 .collection("messages")
                 .add(chatData)
                 .await()
@@ -240,43 +221,22 @@ class ExpenseRepository {
         }
     }
 
-    suspend fun getChatMessages(userId: String): List<ChatMessage> {
+    suspend fun getChatMessages(): List<ChatMessage> {
         return try {
-            val result = chatCollection.document(userId)
+            val currentUser = auth.currentUser ?: return emptyList()
+
+            val result = chatCollection.document(currentUser.uid)
                 .collection("messages")
                 .orderBy("timestamp")
                 .get()
                 .await()
 
             result.documents.map { document ->
-                // FIXED: Handle multiple possible types for 'timestamp' to avoid cast exceptions
-                val rawTimestamp = document.get("timestamp")
-                val timestamp: Timestamp = when (rawTimestamp) {
-                    is Timestamp -> rawTimestamp
-                    is Date -> Timestamp(rawTimestamp)
-                    is Long -> Timestamp(rawTimestamp / 1000, ((rawTimestamp % 1000) * 1000000).toInt())
-                    is String -> try {
-                        val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()).apply {
-                            timeZone = java.util.TimeZone.getTimeZone("UTC")
-                        }
-                        val date = dateFormat.parse(rawTimestamp) ?: Date()
-                        Timestamp(date)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to parse string timestamp: $rawTimestamp", e)
-                        Timestamp.now()
-                    }
-                    null -> Timestamp.now()
-                    else -> {
-                        Log.w(TAG, "Unexpected timestamp type: ${rawTimestamp.javaClass.simpleName}")
-                        Timestamp.now()
-                    }
-                }
-
                 ChatMessage(
                     userId = document.getString("userId") ?: "",
                     message = document.getString("message") ?: "",
                     isUser = document.getBoolean("isUser") ?: true,
-                    timestamp = timestamp
+                    timestamp = document.getTimestamp("timestamp") ?: Timestamp.now()
                 )
             }
         } catch (e: Exception) {

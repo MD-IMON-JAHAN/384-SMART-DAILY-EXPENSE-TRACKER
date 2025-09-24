@@ -20,6 +20,7 @@ class EntryAdapter(
         val amountTextView: TextView = itemView.findViewById(R.id.entryAmount)
         val dateTextView: TextView = itemView.findViewById(R.id.entryDate)
         val categoryTextView: TextView = itemView.findViewById(R.id.entryCategory)
+        val typeIndicator: TextView = itemView.findViewById(R.id.typeIndicator)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): EntryViewHolder {
@@ -33,18 +34,21 @@ class EntryAdapter(
         val dateFormat = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
 
         holder.titleTextView.text = entry.title
-        holder.amountTextView.text = "$${entry.amount}"
+        holder.amountTextView.text = "$${"%.2f".format(entry.amount)}"
         holder.dateTextView.text = dateFormat.format(entry.date)
         holder.categoryTextView.text = entry.category
 
-        // Set color based on type
+        // Set color and indicator based on type
         if (entry.type == "income") {
             holder.amountTextView.setTextColor(Color.GREEN)
+            holder.typeIndicator.text = "💰"
+            holder.typeIndicator.setTextColor(Color.GREEN)
         } else {
             holder.amountTextView.setTextColor(Color.RED)
+            holder.typeIndicator.text = "💸"
+            holder.typeIndicator.setTextColor(Color.RED)
         }
 
-        // Set click listeners
         holder.itemView.setOnClickListener {
             onItemClick(entry)
         }

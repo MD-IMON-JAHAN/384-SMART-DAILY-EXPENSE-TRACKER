@@ -4,6 +4,7 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.widget.EditText
 import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 
@@ -18,6 +19,7 @@ class EditEntryDialog(
         val titleInput = dialogView.findViewById<EditText>(R.id.editTitle)
         val amountInput = dialogView.findViewById<EditText>(R.id.editAmount)
         val categoryInput = dialogView.findViewById<EditText>(R.id.editCategory)
+        val typeGroup = dialogView.findViewById<RadioGroup>(R.id.editTypeGroup)
         val typeExpense = dialogView.findViewById<RadioButton>(R.id.editTypeExpense)
         val typeIncome = dialogView.findViewById<RadioButton>(R.id.editTypeIncome)
 
@@ -34,7 +36,7 @@ class EditEntryDialog(
         AlertDialog.Builder(context)
             .setTitle("Edit Entry")
             .setView(dialogView)
-            .setPositiveButton("Update") { dialog, which ->
+            .setPositiveButton("Update") { dialog, _ ->
                 val newTitle = titleInput.text.toString().trim()
                 val newAmountText = amountInput.text.toString().trim()
                 val newCategory = categoryInput.text.toString().trim()
@@ -56,10 +58,10 @@ class EditEntryDialog(
                 Toast.makeText(context, "Entry updated", Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
             }
-            .setNegativeButton("Cancel") { dialog, which ->
+            .setNegativeButton("Cancel") { dialog, _ ->
                 dialog.dismiss()
             }
-            .setNeutralButton("Delete") { dialog, which ->
+            .setNeutralButton("Delete") { dialog, _ ->
                 viewModel.deleteEntry(entry)
                 Toast.makeText(context, "Entry deleted", Toast.LENGTH_SHORT).show()
                 dialog.dismiss()

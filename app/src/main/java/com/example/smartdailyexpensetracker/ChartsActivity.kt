@@ -75,6 +75,8 @@ class ChartsActivity : AppCompatActivity() {
         }
     }
 
+    // ... (in the updateStatistics method, ensure proper filtering)
+
     private fun updateStatistics(entries: List<Entry>, budget: Budget?) {
         val totalIncome = entries.filter { it.type == "income" }.sumOf { it.amount }
         val totalExpense = entries.filter { it.type == "expense" }.sumOf { it.amount }
@@ -90,6 +92,7 @@ class ChartsActivity : AppCompatActivity() {
         totalIncomeText?.text = "Total Income: $${"%.2f".format(totalIncome)}"
         totalExpenseText?.text = "Total Expense: $${"%.2f".format(totalExpense)}"
         netBalanceText?.text = "Net Balance: $${"%.2f".format(netBalance)}"
+        netBalanceText?.setTextColor(if (netBalance >= 0) Color.GREEN else Color.RED)
         averageDailyText?.text = "Daily Average: $${"%.2f".format(averageDaily)}"
         mostSpentCategoryText?.text = "Top Category: $mostSpentCategory ($${"%.2f".format(mostSpentAmount)})"
     }
