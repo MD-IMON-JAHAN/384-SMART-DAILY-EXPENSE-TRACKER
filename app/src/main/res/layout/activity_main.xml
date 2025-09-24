@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Smart Daily Expense Tracker"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="16dp" />
+
+    <EditText
+        android:id="@+id/expenseTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Expense Title"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/expenseAmount"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Amount"
+        android:inputType="numberDecimal"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/expenseCategory"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Category"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/addExpenseButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Add Expense"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/totalExpenses"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Total: $0.0"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Expenses List:"
+        android:textSize="16sp"
+        android:layout_marginBottom="8dp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/expensesRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+</LinearLayout>
