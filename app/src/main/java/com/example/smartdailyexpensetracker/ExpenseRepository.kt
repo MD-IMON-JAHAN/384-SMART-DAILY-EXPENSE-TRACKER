@@ -184,22 +184,56 @@ class ExpenseRepository {
             val document = budgetDoc.get().await()
 
             if (document.exists()) {
-                val currentSpending = document.getDouble("currentSpending") ?: 0.0
-                budgetDoc.update("currentSpending", currentSpending + amount)
+                // Instead of relying on currentSpending, we'll recalculate from expenses
+                val expenses = getExpensesForCurrentMonth(userId, monthYear)
+                val currentSpending = expenses.sumOf { it.amount }
+
+                budgetDoc.update("currentSpending", currentSpending)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error updating budget spending", e)
         }
     }
+    // Add this helper function:
+    private suspend fun getExpensesForCurrentMonth(userId: String, monthYear: String): List<Expense> {
+        return try {
+            val result = expensesCollection
+                .whereEqualTo("userId", userId)
+                .get()
+                .await()
+
+            result.documents.mapNotNull { document ->
+                val expenseDate = document.getDate("date") ?: return@mapNotNull null
+                val expenseMonthYear = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(expenseDate)
+
+                if (expenseMonthYear == monthYear) {
+                    Expense(
+                        id = document.id,
+                        title = document.getString("title") ?: "",
+                        amount = document.getDouble("amount") ?: 0.0,
+                        date = expenseDate,
+                        category = document.getString("category") ?: "",
+                        userId = document.getString("userId") ?: ""
+                    )
+                } else {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting expenses for current month", e)
+            emptyList()
+        }
+    }
 
     // Chat methods
+    // In the saveChatMessage function, fix the timestamp issue:
     suspend fun saveChatMessage(message: ChatMessage): Boolean {
         return try {
             val chatData = hashMapOf(
                 "userId" to message.userId,
                 "message" to message.message,
                 "isUser" to message.isUser,
-                "timestamp" to message.timestamp
+                "timestamp" to FieldValue.serverTimestamp() // Use server timestamp instead of local
             )
 
             chatCollection.document(message.userId)
@@ -213,7 +247,7 @@ class ExpenseRepository {
         }
     }
 
-    // In the getChatMessages function, fix the timestamp handling:
+    // Fix the getChatMessages function to handle server timestamps:
     suspend fun getChatMessages(userId: String): List<ChatMessage> {
         return try {
             val result = chatCollection.document(userId)
@@ -223,9 +257,8 @@ class ExpenseRepository {
                 .await()
 
             result.documents.map { document ->
-                val timestamp = document.getDate("timestamp")
-                    ?: document.getLong("timestamp")?.let { Date(it) }
-                    ?: Date()
+                // Handle server timestamp conversion
+                val timestamp = document.getDate("timestamp") ?: Date()
 
                 ChatMessage(
                     userId = document.getString("userId") ?: "",

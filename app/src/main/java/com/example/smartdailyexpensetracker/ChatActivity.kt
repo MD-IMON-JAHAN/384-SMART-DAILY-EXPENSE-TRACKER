@@ -9,10 +9,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 class ChatActivity : AppCompatActivity() {
 
@@ -38,7 +34,7 @@ class ChatActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = "AI Assistant"
 
-        // Load chat history
+        // Load existing chat history
         expenseViewModel.loadChatHistory()
     }
 
@@ -64,11 +60,18 @@ class ChatActivity : AppCompatActivity() {
 
     private fun setupObservers() {
         expenseViewModel.chatMessages.observe(this) { messages ->
-            chatAdapter = ChatAdapter(messages)
+            // Filter out any empty or invalid messages and ensure proper ordering
+            val validMessages = messages
+                .filter { it.message.isNotBlank() }
+                .sortedBy { it.timestamp } // Ensure chronological order
+
+            chatAdapter = ChatAdapter(validMessages)
             chatRecyclerView.adapter = chatAdapter
-            if (messages.isNotEmpty()) {
+
+            // Scroll to bottom when new messages arrive
+            if (validMessages.isNotEmpty()) {
                 chatRecyclerView.post {
-                    chatRecyclerView.smoothScrollToPosition(messages.size - 1)
+                    chatRecyclerView.smoothScrollToPosition(validMessages.size - 1)
                 }
             }
         }
@@ -102,6 +105,21 @@ class ChatActivity : AppCompatActivity() {
 
         // Auto-focus on message input
         messageInput.requestFocus()
+
+        // Setup send button enabled state based on input
+        messageInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                validateInput()
+            }
+        })
+    }
+
+    private fun validateInput() {
+        val message = messageInput.text.toString().trim()
+        val isLoading = expenseViewModel.isLoading.value ?: false
+        sendButton.isEnabled = message.isNotEmpty() && !isLoading
     }
 
     private fun sendMessage() {
@@ -109,6 +127,13 @@ class ChatActivity : AppCompatActivity() {
         if (message.isNotEmpty()) {
             expenseViewModel.sendChatMessage(message)
             messageInput.text.clear()
+            sendButton.isEnabled = false
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Reload chat history when returning to the activity
+        expenseViewModel.loadChatHistory()
     }
 }

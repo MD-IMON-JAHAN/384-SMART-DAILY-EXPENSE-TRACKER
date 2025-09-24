@@ -18,10 +18,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 
-
 class MainActivity : AppCompatActivity() {
     private val expenseViewModel: ExpenseViewModel by viewModels()
     private val auth = Firebase.auth
+    private var budgetWarningShown = false // Prevent duplicate warnings
 
     private lateinit var expenseTitle: EditText
     private lateinit var expenseAmount: EditText
@@ -140,19 +140,26 @@ class MainActivity : AppCompatActivity() {
             )
             expensesRecyclerView.adapter = expenseAdapter
             updateTotalExpenses()
+            updateBudgetStatus() // Update budget status when expenses change
         }
 
         expenseViewModel.budget.observe(this) { budget ->
-            updateBudgetStatus(budget)
+            updateBudgetStatus() // Update budget status when budget changes
+            checkForBudgetWarnings()
         }
 
         expenseViewModel.isLoading.observe(this) { isLoading ->
             loadingProgressBar.visibility = if (isLoading) ProgressBar.VISIBLE else ProgressBar.GONE
+            addExpenseButton.isEnabled = !isLoading
+            setBudgetButton.isEnabled = !isLoading
+            aiAdviceButton.isEnabled = !isLoading
         }
 
         expenseViewModel.aiAdvice.observe(this) { advice ->
             advice?.let {
                 showAIAdviceDialog(it)
+                // Reset the LiveData after showing to prevent showing again
+                expenseViewModel.clearAIAdvice() // <-- use ViewModel method instead of setting .value from Activity
             }
         }
     }
@@ -179,6 +186,8 @@ class MainActivity : AppCompatActivity() {
                     } else {
                         Toast.makeText(this, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
                     }
+                } else {
+                    Toast.makeText(this, "Please enter a budget amount", Toast.LENGTH_SHORT).show()
                 }
                 dialog.dismiss()
             }
@@ -188,29 +197,51 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun updateBudgetStatus(budget: Budget?) {
+    private fun updateBudgetStatus() {
+        val budget = expenseViewModel.budget.value
+        val totalExpenses = expenseViewModel.getTotalExpenses()
+
         if (budget == null) {
             budgetStatusTextView.text = "Monthly Budget: Not set"
             budgetStatusTextView.setTextColor(Color.GRAY)
         } else {
-            val total = expenseViewModel.getTotalExpenses()
-            val remaining = budget.monthlyBudget - total
-            val percentage = (total / budget.monthlyBudget) * 100
+            val remaining = budget.monthlyBudget - totalExpenses
+            val percentage = if (budget.monthlyBudget > 0) {
+                (totalExpenses / budget.monthlyBudget) * 100
+            } else {
+                0.0
+            }
 
-            budgetStatusTextView.text =
-                "Budget: $${"%.2f".format(total)} / $${"%.2f".format(budget.monthlyBudget)} | " +
+            val statusText = if (remaining >= 0) {
+                "Budget: $${"%.2f".format(totalExpenses)} / $${"%.2f".format(budget.monthlyBudget)} | " +
                         "Remaining: $${"%.2f".format(remaining)} (${"%.1f".format(percentage)}%)"
+            } else {
+                val overspent = -remaining
+                "Budget: $${"%.2f".format(totalExpenses)} / $${"%.2f".format(budget.monthlyBudget)} | " +
+                        "Overspent: $${"%.2f".format(overspent)} (${"%.1f".format(percentage)}%)"
+            }
+
+            budgetStatusTextView.text = statusText
 
             when {
-                percentage > 90 -> budgetStatusTextView.setTextColor(Color.RED)
+                percentage >= 100 -> budgetStatusTextView.setTextColor(Color.RED)
                 percentage > 75 -> budgetStatusTextView.setTextColor(Color.parseColor("#FFA500")) // Orange
                 else -> budgetStatusTextView.setTextColor(Color.GREEN)
             }
+        }
+    }
 
-            // Show warning if budget exceeded
-            if (total > budget.monthlyBudget) {
-                showBudgetWarning(total, budget.monthlyBudget)
-            }
+    // Add this function to check for budget warnings
+    private fun checkForBudgetWarnings() {
+        val budget = expenseViewModel.budget.value
+        val total = expenseViewModel.getTotalExpenses()
+
+        if (budget != null && total > budget.monthlyBudget && !budgetWarningShown) {
+            budgetWarningShown = true
+            showBudgetWarning(total, budget.monthlyBudget)
+        } else if (budget != null && total <= budget.monthlyBudget) {
+            // Reset the warning flag when budget is no longer exceeded
+            budgetWarningShown = false
         }
     }
 
@@ -222,7 +253,11 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Get AI Advice") { _, _ ->
                 expenseViewModel.getAIAdvice()
             }
-            .setNegativeButton("Later", null)
+            .setNegativeButton("Later") { _, _ -> }
+            .setOnDismissListener {
+                // Reset the warning flag after dialog is dismissed
+                budgetWarningShown = false
+            }
             .show()
     }
 
@@ -230,7 +265,9 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("🤖 AI Financial Advice")
             .setMessage(advice)
-            .setPositiveButton("OK", null)
+            .setPositiveButton("OK") { dialog, _ ->
+                dialog.dismiss()
+            }
             .setNeutralButton("Chat with AI") { _, _ ->
                 startActivity(Intent(this, ChatActivity::class.java))
             }
@@ -311,6 +348,11 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        if (amount <= 0) {
+            Toast.makeText(this, "Please enter a positive amount", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         expenseViewModel.addExpense(title, amount, category)
 
         // Clear input fields
@@ -323,6 +365,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateTotalExpenses() {
         val total = expenseViewModel.getTotalExpenses()
-        totalExpensesTextView.text = "Total: $${"%.2f".format(total)}"
+        totalExpensesTextView.text = "Total Expenses: $${"%.2f".format(total)}"
     }
 }

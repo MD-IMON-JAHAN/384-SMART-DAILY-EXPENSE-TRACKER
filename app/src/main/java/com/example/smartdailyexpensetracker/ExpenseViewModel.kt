@@ -1,9 +1,6 @@
 package com.example.smartdailyexpensetracker
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.*
 import com.example.smartdailyexpensetracker.ai.GeminiAIService
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
@@ -11,6 +8,7 @@ import kotlinx.coroutines.launch
 import java.util.Date
 
 class ExpenseViewModel : ViewModel() {
+
     private val repository = ExpenseRepository()
     private val geminiService = GeminiAIService()
     private val auth = Firebase.auth
@@ -42,8 +40,8 @@ class ExpenseViewModel : ViewModel() {
             try {
                 val expensesList = repository.getExpenses()
                 _expenses.value = expensesList
+                checkBudgetWarning()
             } catch (e: Exception) {
-                // Handle error
                 _expenses.value = emptyList()
             } finally {
                 _isLoading.value = false
@@ -55,8 +53,8 @@ class ExpenseViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 _budget.value = repository.getCurrentBudget()
+                checkBudgetWarning()
             } catch (e: Exception) {
-                // Handle error
                 _budget.value = null
             }
         }
@@ -78,7 +76,15 @@ class ExpenseViewModel : ViewModel() {
         }
     }
 
-    // ADD THIS MISSING FUNCTION
+    private fun checkBudgetWarning() {
+        val currentBudget = _budget.value
+        val currentSpending = getTotalExpenses()
+
+        if (currentBudget != null && currentSpending > currentBudget.monthlyBudget) {
+            getAIAdvice()
+        }
+    }
+
     fun getAIAdvice() {
         viewModelScope.launch {
             try {
@@ -92,6 +98,17 @@ class ExpenseViewModel : ViewModel() {
                         recentExpenses
                     )
                     _aiAdvice.value = advice
+
+                    val currentUser = auth.currentUser
+                    if (currentUser != null) {
+                        val aiMessage = ChatMessage(
+                            userId = currentUser.uid,
+                            message = "💰 Budget Alert Advice:\n\n$advice",
+                            isUser = false
+                        )
+                        repository.saveChatMessage(aiMessage)
+                        loadChatHistory()
+                    }
                 } else {
                     _aiAdvice.value = "Please set a monthly budget first to get AI advice!"
                 }
@@ -103,13 +120,26 @@ class ExpenseViewModel : ViewModel() {
         }
     }
 
-    // ... rest of your existing functions (setMonthlyBudget, addExpense, sendChatMessage, etc.) ...
+    /** Public helper to let Activities/Fragments clear the AI advice after it was handled */
+    fun clearAIAdvice() {
+        _aiAdvice.value = null
+    }
 
     fun setMonthlyBudget(amount: Double) {
         viewModelScope.launch {
             val success = repository.setMonthlyBudget(amount)
             if (success) {
                 loadBudget()
+                val currentUser = auth.currentUser
+                if (currentUser != null) {
+                    val message = ChatMessage(
+                        userId = currentUser.uid,
+                        message = "✅ Monthly budget set to $${amount}",
+                        isUser = false
+                    )
+                    repository.saveChatMessage(message)
+                    loadChatHistory()
+                }
             }
         }
     }
@@ -149,6 +179,7 @@ class ExpenseViewModel : ViewModel() {
             if (success) {
                 loadExpenses()
                 loadBudget()
+                checkBudgetWarning()
             }
         }
     }
@@ -159,6 +190,7 @@ class ExpenseViewModel : ViewModel() {
             if (success) {
                 loadExpenses()
                 loadBudget()
+                checkBudgetWarning()
             }
         }
     }
@@ -175,75 +207,40 @@ class ExpenseViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                // Save user message first
                 val userMessage = ChatMessage(
                     userId = currentUser.uid,
                     message = message,
-                    isUser = true,
-                    timestamp = Date()
+                    isUser = true
                 )
 
-                val saved = repository.saveChatMessage(userMessage)
-                if (saved) {
-                    // Immediately add user message to UI without waiting for Firestore
-                    val currentMessages = _chatMessages.value ?: emptyList()
-                    _chatMessages.value = currentMessages + userMessage
-                }
+                repository.saveChatMessage(userMessage)
+                loadChatHistory()
 
-                // Show typing indicator
-                val typingMessage = ChatMessage(
-                    userId = "system",
-                    message = "AI is thinking...",
-                    isUser = false,
-                    timestamp = Date()
-                )
-
-                val messagesWithTyping = (_chatMessages.value ?: emptyList()) + typingMessage
-                _chatMessages.value = messagesWithTyping
-
-                // Get AI response
                 val aiResponse = geminiService.chatWithAI(message)
-
-                // Remove typing indicator and add AI response
-                val messagesWithoutTyping = (_chatMessages.value ?: emptyList())
-                    .filter { it.message != "AI is thinking..." }
 
                 val aiMessage = ChatMessage(
                     userId = currentUser.uid,
                     message = aiResponse,
-                    isUser = false,
-                    timestamp = Date()
+                    isUser = false
                 )
 
-                val aiSaved = repository.saveChatMessage(aiMessage)
-                if (aiSaved) {
-                    _chatMessages.value = messagesWithoutTyping + aiMessage
-                }
+                repository.saveChatMessage(aiMessage)
+                loadChatHistory()
 
             } catch (e: Exception) {
-                // Handle error - show error message
                 val errorMessage = ChatMessage(
-                    userId = "system",
-                    message = "Sorry, I encountered an error. Please check your internet connection and try again.",
-                    isUser = false,
-                    timestamp = Date()
+                    userId = currentUser.uid,
+                    message = "Sorry, I encountered an error: ${e.message}",
+                    isUser = false
                 )
-
-                // Remove typing indicator and show error
-                val messagesWithoutTyping = (_chatMessages.value ?: emptyList())
-                    .filter { it.message != "AI is thinking..." }
-                _chatMessages.value = messagesWithoutTyping + errorMessage
-
-                // Also save error message to Firestore
                 repository.saveChatMessage(errorMessage)
-
+                loadChatHistory()
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    // Add this public method to save welcome messages
     fun saveWelcomeMessage(chatMessage: ChatMessage) {
         viewModelScope.launch {
             repository.saveChatMessage(chatMessage)
