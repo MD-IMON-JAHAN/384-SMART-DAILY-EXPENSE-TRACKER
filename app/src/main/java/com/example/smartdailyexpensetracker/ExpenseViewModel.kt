@@ -7,7 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
-import com.example.smartdailyexpensetracker.ai.GeminiAIService
+import com.example.smartdailyexpensetracker.GeminiAIService
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
@@ -23,8 +23,8 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
     private val geminiService = GeminiAIService()
     private val auth = Firebase.auth
 
-    private val _expenses = MutableLiveData<List<Expense>>(emptyList())
-    val expenses: LiveData<List<Expense>> = _expenses
+    private val _entries = MutableLiveData<List<Entry>>(emptyList())
+    val entries: LiveData<List<Entry>> = _entries
 
     private val _budget = MutableLiveData<Budget?>(null)
     val budget: LiveData<Budget?> = _budget
@@ -56,19 +56,19 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 
     private fun loadData() {
         viewModelScope.launch {
-            loadExpenses()
+            loadEntries()
             loadBudget()
             loadChatHistory()
         }
     }
 
     // Explicit Unit return type avoids type-inference recursion problems
-    suspend fun loadExpenses(): Unit = executeWithLoading {
+    suspend fun loadEntries(): Unit = executeWithLoading {
         val list = withContext(Dispatchers.IO) {
-            repository.getExpenses() // repository returns non-null List<Expense>
+            repository.getEntries() // repository returns non-null List<Entry>
         }
         // Removed isActive check - coroutine cancellation is handled automatically
-        _expenses.postValue(list)
+        _entries.postValue(list)
         checkBudgetWarning()
     }
 
@@ -115,12 +115,12 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
             executeWithLoading {
                 val currentBudget = _budget.value
                 if (currentBudget != null) {
-                    val recentExpenses = _expenses.value?.take(5) ?: emptyList()
+                    val recentEntries = _entries.value?.take(5) ?: emptyList()
                     val advice = withContext(Dispatchers.IO) {
                         geminiService.getBudgetAdvice(
                             currentBudget.monthlyBudget,
                             currentBudget.currentSpending,
-                            recentExpenses
+                            recentEntries
                         )
                     }
                     // Removed isActive check
@@ -164,7 +164,6 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                             timestamp = Timestamp.now()
                         )
                         withContext(Dispatchers.IO) { repository.saveChatMessage(message) }
-                        // Removed isActive check
                         loadChatHistory()
                     }
                 } else {
@@ -174,73 +173,83 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun addExpense(title: String, amount: Double, category: String) {
+    fun addEntry(title: String, amount: Double, category: String, type: String) {
         val currentUser = auth.currentUser ?: return
 
         viewModelScope.launch {
             executeWithLoading {
-                val expense = Expense(
+                val entry = Entry(
                     title = title,
                     amount = amount,
-                    date = Date(), // java.util.Date
+                    date = Date(),
                     category = category,
+                    type = type,
                     userId = currentUser.uid
                 )
 
-                val expenseId = withContext(Dispatchers.IO) { repository.addExpense(expense) }
+                val entryId = withContext(Dispatchers.IO) { repository.addEntry(entry) }
                 // Removed isActive check
-                if (expenseId.isNotEmpty()) {
-                    loadExpenses()
+                if (entryId.isNotEmpty()) {
+                    loadEntries()
                     loadBudget()
                 } else {
-                    Toast.makeText(getApplication(), "Failed to add expense", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(getApplication(), "Failed to add entry", Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
 
-    fun updateExpense(expense: Expense, title: String, amount: Double, category: String) {
+    fun updateEntry(entry: Entry, title: String, amount: Double, category: String, type: String) {
         viewModelScope.launch {
             executeWithLoading {
-                val oldAmount = expense.amount
-                val updatedExpense = expense.copy(
+                val oldAmount = entry.amount
+                val updatedEntry = entry.copy(
                     title = title,
                     amount = amount,
                     category = category,
+                    type = type,
                     date = Date()
                 )
 
-                val success = withContext(Dispatchers.IO) { repository.updateExpense(updatedExpense, oldAmount) }
+                val success = withContext(Dispatchers.IO) { repository.updateEntry(updatedEntry, oldAmount) }
                 // Removed isActive check
                 if (success) {
-                    loadExpenses()
+                    loadEntries()
                     loadBudget()
                     checkBudgetWarning()
                 } else {
-                    Toast.makeText(getApplication(), "Failed to update expense", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(getApplication(), "Failed to update entry", Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
 
-    fun deleteExpense(expense: Expense) {
+    fun deleteEntry(entry: Entry) {
         viewModelScope.launch {
             executeWithLoading {
-                val success = withContext(Dispatchers.IO) { repository.deleteExpense(expense) }
+                val success = withContext(Dispatchers.IO) { repository.deleteEntry(entry) }
                 // Removed isActive check
                 if (success) {
-                    loadExpenses()
+                    loadEntries()
                     loadBudget()
                     checkBudgetWarning()
                 } else {
-                    Toast.makeText(getApplication(), "Failed to delete expense", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(getApplication(), "Failed to delete entry", Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
 
     fun getTotalExpenses(): Double {
-        return _expenses.value?.sumOf { it.amount } ?: 0.0
+        return _entries.value?.filter { it.type == "expense" }?.sumOf { it.amount } ?: 0.0
+    }
+
+    fun getTotalIncome(): Double {
+        return _entries.value?.filter { it.type == "income" }?.sumOf { it.amount } ?: 0.0
+    }
+
+    fun getTotalBalance(): Double {
+        return getTotalIncome() - getTotalExpenses()
     }
 
     fun sendChatMessage(message: String) {

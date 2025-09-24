@@ -10,6 +10,7 @@ import android.view.MenuItem
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
+import android.widget.RadioButton
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
@@ -28,18 +29,20 @@ class MainActivity : AppCompatActivity() {
     private val auth = Firebase.auth
     private var budgetWarningShown = false // Prevent duplicate warnings
 
-    private lateinit var expenseTitle: EditText
-    private lateinit var expenseAmount: EditText
-    private lateinit var expenseCategory: EditText
-    private lateinit var addExpenseButton: Button
-    private lateinit var expensesRecyclerView: RecyclerView
-    private lateinit var totalExpensesTextView: TextView
+    private lateinit var entryTitle: EditText
+    private lateinit var entryAmount: EditText
+    private lateinit var entryCategory: EditText
+    private lateinit var addEntryButton: Button
+    private lateinit var entriesRecyclerView: RecyclerView
+    private lateinit var totalBalanceTextView: TextView
     private lateinit var budgetStatusTextView: TextView
     private lateinit var setBudgetButton: Button
     private lateinit var aiAdviceButton: Button
     private lateinit var loadingProgressBar: ProgressBar
+    private lateinit var entryTypeExpense: RadioButton
+    private lateinit var entryTypeIncome: RadioButton
 
-    private lateinit var expenseAdapter: ExpenseAdapter
+    private lateinit var entryAdapter: EntryAdapter
 
     companion object {
         private const val TAG = "MainActivity"
@@ -113,34 +116,36 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initializeViews() {
-        expenseTitle = findViewById(R.id.expenseTitle)
-        expenseAmount = findViewById(R.id.expenseAmount)
-        expenseCategory = findViewById(R.id.expenseCategory)
-        addExpenseButton = findViewById(R.id.addExpenseButton)
-        expensesRecyclerView = findViewById(R.id.expensesRecyclerView)
-        totalExpensesTextView = findViewById(R.id.totalExpenses)
+        entryTitle = findViewById(R.id.entryTitle)
+        entryAmount = findViewById(R.id.entryAmount)
+        entryCategory = findViewById(R.id.entryCategory)
+        addEntryButton = findViewById(R.id.addEntryButton)
+        entriesRecyclerView = findViewById(R.id.entriesRecyclerView)
+        totalBalanceTextView = findViewById(R.id.totalBalance)
         budgetStatusTextView = findViewById(R.id.budgetStatusText)
         setBudgetButton = findViewById(R.id.setBudgetButton)
         aiAdviceButton = findViewById(R.id.aiAdviceButton)
         loadingProgressBar = findViewById(R.id.loadingProgressBar)
+        entryTypeExpense = findViewById(R.id.entryTypeExpense)
+        entryTypeIncome = findViewById(R.id.entryTypeIncome)
     }
 
     private fun setupRecyclerView() {
-        expenseAdapter = ExpenseAdapter(
+        entryAdapter = EntryAdapter(
             emptyList(),
-            onItemClick = { expense -> showEditDialog(expense) },
-            onItemLongClick = { expense ->
-                showDeleteConfirmation(expense)
+            onItemClick = { entry -> EditEntryDialog(this, entry, expenseViewModel).show() },
+            onItemLongClick = { entry ->
+                showDeleteConfirmation(entry)
                 true
             }
         )
-        expensesRecyclerView.layoutManager = LinearLayoutManager(this)
-        expensesRecyclerView.adapter = expenseAdapter
+        entriesRecyclerView.layoutManager = LinearLayoutManager(this)
+        entriesRecyclerView.adapter = entryAdapter
     }
 
     private fun setupButtonListeners() {
-        addExpenseButton.setOnClickListener {
-            addNewExpense()
+        addEntryButton.setOnClickListener {
+            addNewEntry()
         }
 
         setBudgetButton.setOnClickListener {
@@ -153,18 +158,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupObservers() {
-        expenseViewModel.expenses.observe(this) { expenses ->
-            expenseAdapter = ExpenseAdapter(
-                expenses,
-                onItemClick = { expense -> showEditDialog(expense) },
-                onItemLongClick = { expense ->
-                    showDeleteConfirmation(expense)
+        expenseViewModel.entries.observe(this) { entries ->
+            entryAdapter = EntryAdapter(
+                entries,
+                onItemClick = { entry -> EditEntryDialog(this, entry, expenseViewModel).show() },
+                onItemLongClick = { entry ->
+                    showDeleteConfirmation(entry)
                     true
                 }
             )
-            expensesRecyclerView.adapter = expenseAdapter
-            updateTotalExpenses()
-            updateBudgetStatus() // Update budget status when expenses change
+            entriesRecyclerView.adapter = entryAdapter
+            updateTotalBalance()
+            updateBudgetStatus() // Update budget status when entries change
         }
 
         expenseViewModel.budget.observe(this) { budget ->
@@ -174,7 +179,7 @@ class MainActivity : AppCompatActivity() {
 
         expenseViewModel.isLoading.observe(this) { isLoading ->
             loadingProgressBar.visibility = if (isLoading) ProgressBar.VISIBLE else ProgressBar.GONE
-            addExpenseButton.isEnabled = !isLoading
+            addEntryButton.isEnabled = !isLoading
             setBudgetButton.isEnabled = !isLoading
             aiAdviceButton.isEnabled = !isLoading
         }
@@ -298,67 +303,27 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun showEditDialog(expense: Expense) {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_edit_expense, null)
-        val titleInput = dialogView.findViewById<EditText>(R.id.editTitle)
-        val amountInput = dialogView.findViewById<EditText>(R.id.editAmount)
-        val categoryInput = dialogView.findViewById<EditText>(R.id.editCategory)
-
-        // Pre-fill with existing data
-        titleInput.setText(expense.title)
-        amountInput.setText(expense.amount.toString())
-        categoryInput.setText(expense.category)
-
-        AlertDialog.Builder(this)
-            .setTitle("Edit Expense")
-            .setView(dialogView)
-            .setPositiveButton("Update") { dialog, _ ->
-                val newTitle = titleInput.text.toString().trim()
-                val newAmountText = amountInput.text.toString().trim()
-                val newCategory = categoryInput.text.toString().trim()
-
-                if (newTitle.isEmpty() || newAmountText.isEmpty() || newCategory.isEmpty()) {
-                    Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
-
-                val newAmount = try {
-                    newAmountText.toDouble()
-                } catch (e: NumberFormatException) {
-                    Toast.makeText(this, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
-
-                expenseViewModel.updateExpense(expense, newTitle, newAmount, newCategory)
-                Toast.makeText(this, "Expense updated", Toast.LENGTH_SHORT).show()
-                dialog.dismiss()
-            }
-            .setNegativeButton("Cancel") { dialog, _ ->
-                dialog.dismiss()
-            }
-            .setNeutralButton("Delete") { dialog, _ ->
-                showDeleteConfirmation(expense)
-                dialog.dismiss()
-            }
-            .show()
+    private fun showEditDialog(entry: Entry) {
+        EditEntryDialog(this, entry, expenseViewModel).show()
     }
 
-    private fun showDeleteConfirmation(expense: Expense) {
+    private fun showDeleteConfirmation(entry: Entry) {
         AlertDialog.Builder(this)
-            .setTitle("Delete Expense")
-            .setMessage("Are you sure you want to delete '${expense.title}'?")
+            .setTitle("Delete Entry")
+            .setMessage("Are you sure you want to delete '${entry.title}'?")
             .setPositiveButton("Delete") { _, _ ->
-                expenseViewModel.deleteExpense(expense)
-                Toast.makeText(this, "Expense deleted", Toast.LENGTH_SHORT).show()
+                expenseViewModel.deleteEntry(entry)
+                Toast.makeText(this, "Entry deleted", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
-    private fun addNewExpense() {
-        val title = expenseTitle.text.toString().trim()
-        val amountText = expenseAmount.text.toString().trim()
-        val category = expenseCategory.text.toString().trim()
+    private fun addNewEntry() {
+        val title = entryTitle.text.toString().trim()
+        val amountText = entryAmount.text.toString().trim()
+        val category = entryCategory.text.toString().trim()
+        val type = if (entryTypeIncome.isChecked) "income" else "expense"
 
         if (title.isEmpty() || amountText.isEmpty() || category.isEmpty()) {
             Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show()
@@ -377,19 +342,20 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        expenseViewModel.addExpense(title, amount, category)
+        expenseViewModel.addEntry(title, amount, category, type)
 
         // Clear input fields
-        expenseTitle.text.clear()
-        expenseAmount.text.clear()
-        expenseCategory.text.clear()
+        entryTitle.text.clear()
+        entryAmount.text.clear()
+        entryCategory.text.clear()
+        entryTypeExpense.isChecked = true
 
-        Toast.makeText(this, "Expense added successfully", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Entry added successfully", Toast.LENGTH_SHORT).show()
     }
 
-    private fun updateTotalExpenses() {
-        val total = expenseViewModel.getTotalExpenses()
-        totalExpensesTextView.text = "Total Expenses: $${"%.2f".format(total)}"
+    private fun updateTotalBalance() {
+        val totalBalance = expenseViewModel.getTotalBalance()
+        totalBalanceTextView.text = "Total Balance: $${"%.2f".format(totalBalance)}"
     }
 
     private fun applySavedTheme() {

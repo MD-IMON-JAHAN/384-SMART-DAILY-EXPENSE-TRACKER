@@ -6,17 +6,17 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
-import androidx.activity.viewModels
+import androidx.activity.viewModels // FIXED: Added import for viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.lifecycle.LifecycleOwner // If needed for observers
 import kotlinx.coroutines.launch
 
 class ChatActivity : AppCompatActivity() {
 
-    private val expenseViewModel: ExpenseViewModel by viewModels { ExpenseViewModelFactory(application) } // FIXED: Use Factory with application
+    private val expenseViewModel: ExpenseViewModel by viewModels { ExpenseViewModelFactory(application) } // FIXED: viewModels resolved
 
     private lateinit var chatRecyclerView: RecyclerView
     private lateinit var messageInput: EditText
@@ -28,18 +28,20 @@ class ChatActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_chat)
 
+        // Set up Toolbar
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
+        setSupportActionBar(toolbar)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true) // Enable back icon
+        supportActionBar?.title = "AI Assistant" // Set title to "AI Assistant"
+
         initializeViews()
         setupRecyclerView()
         setupObservers()
         setupClickListeners()
-
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.title = "AI Assistant"
     }
 
     override fun onStart() {
         super.onStart()
-        // FIXED: Call suspend function inside coroutine scope
         lifecycleScope.launch {
             expenseViewModel.loadChatHistory()
         }

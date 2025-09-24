@@ -79,7 +79,7 @@
 
             </androidx.cardview.widget.CardView>
 
-            <!-- Add Expense Section -->
+            <!-- Add Entry Section -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -97,21 +97,21 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="➕ Add New Expense"
+                        android:text="➕ Add New Entry"
                         android:textSize="18sp"
                         android:textStyle="bold"
                         android:layout_marginBottom="12dp"
                         android:textColor="@color/text_color_primary" />
 
                     <EditText
-                        android:id="@+id/expenseTitle"
+                        android:id="@+id/entryTitle"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="Expense Title"
+                        android:hint="Entry Title"
                         android:layout_marginBottom="8dp" />
 
                     <EditText
-                        android:id="@+id/expenseAmount"
+                        android:id="@+id/entryAmount"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:hint="Amount"
@@ -119,23 +119,44 @@
                         android:layout_marginBottom="8dp" />
 
                     <EditText
-                        android:id="@+id/expenseCategory"
+                        android:id="@+id/entryCategory"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:hint="Category"
-                        android:layout_marginBottom="16dp" />
+                        android:layout_marginBottom="8dp" />
+
+                    <RadioGroup
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <androidx.appcompat.widget.AppCompatRadioButton
+                            android:id="@+id/entryTypeExpense"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Expense"
+                            android:checked="true"
+                            android:layout_marginBottom="8dp" />
+
+                        <androidx.appcompat.widget.AppCompatRadioButton
+                            android:id="@+id/entryTypeIncome"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Income" />
+                    </RadioGroup>
 
                     <Button
-                        android:id="@+id/addExpenseButton"
+                        android:id="@+id/addEntryButton"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Add Expense" />
+                        android:text="Add Entry"
+                        android:layout_marginTop="16dp" />
 
                 </LinearLayout>
 
             </androidx.cardview.widget.CardView>
 
-            <!-- Expenses Summary -->
+            <!-- Entries Summary -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -151,10 +172,10 @@
                     android:padding="16dp">
 
                     <TextView
-                        android:id="@+id/totalExpenses"
+                        android:id="@+id/totalBalance"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Total: $0.00"
+                        android:text="Total Balance: $0.00"
                         android:textSize="18sp"
                         android:textStyle="bold"
                         android:layout_marginBottom="8dp"
@@ -171,17 +192,17 @@
 
             </androidx.cardview.widget.CardView>
 
-            <!-- Expenses List -->
+            <!-- Entries List -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="📋 Expenses List:"
+                android:text="📋 Entries List:"
                 android:textSize="16sp"
                 android:layout_marginBottom="8dp"
                 android:textColor="@color/text_color_primary" />
 
             <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/expensesRecyclerView"
+                android:id="@+id/entriesRecyclerView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
 

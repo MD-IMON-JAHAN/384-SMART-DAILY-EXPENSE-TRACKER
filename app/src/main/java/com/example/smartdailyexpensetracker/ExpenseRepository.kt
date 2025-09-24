@@ -14,7 +14,7 @@ import java.util.Locale
 class ExpenseRepository {
     private val db by lazy { Firebase.firestore }
     private val auth by lazy { Firebase.auth }
-    private val expensesCollection get() = db.collection("expenses")
+    private val entriesCollection get() = db.collection("entries")
     private val budgetsCollection get() = db.collection("budgets")
     private val chatCollection get() = db.collection("chats")
 
@@ -34,92 +34,95 @@ class ExpenseRepository {
         return format.format(Date())
     }
 
-    suspend fun getExpenses(): List<Expense> {
+    suspend fun getEntries(): List<Entry> {
         return try {
             val currentUser = auth.currentUser ?: return emptyList()
 
-            val result = expensesCollection
+            val result = entriesCollection
                 .whereEqualTo("userId", currentUser.uid)
                 .get()
                 .await()
 
             result.documents.map { document ->
-                Expense(
+                Entry(
                     id = document.id,
                     title = document.getString("title") ?: "",
                     amount = document.getDouble("amount") ?: 0.0,
                     date = document.getDate("date") ?: Date(),
                     category = document.getString("category") ?: "",
+                    type = document.getString("type") ?: "expense",
                     userId = document.getString("userId") ?: ""
                 )
             }.sortedByDescending { it.date }
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting expenses", e)
+            Log.e(TAG, "Error getting entries", e)
             emptyList()
         }
     }
 
-    suspend fun addExpense(expense: Expense): String {
+    suspend fun addEntry(entry: Entry): String {
         return try {
             val currentUser = auth.currentUser ?: return ""
 
-            val expenseData = hashMapOf(
-                "title" to expense.title,
-                "amount" to expense.amount,
-                "date" to expense.date,
-                "category" to expense.category,
+            val entryData = hashMapOf(
+                "title" to entry.title,
+                "amount" to entry.amount,
+                "date" to entry.date,
+                "category" to entry.category,
+                "type" to entry.type,
                 "userId" to currentUser.uid,
                 "createdAt" to FieldValue.serverTimestamp()
             )
 
-            val result = expensesCollection.add(expenseData).await()
-            updateBudgetSpending(currentUser.uid, expense.amount)
+            val result = entriesCollection.add(entryData).await()
+            updateBudgetSpending(currentUser.uid, entry.amount, entry.type)
             result.id
         } catch (e: Exception) {
-            Log.e(TAG, "Error adding expense", e)
+            Log.e(TAG, "Error adding entry", e)
             ""
         }
     }
 
-    suspend fun updateExpense(expense: Expense, oldAmount: Double? = null): Boolean {
+    suspend fun updateEntry(entry: Entry, oldAmount: Double? = null): Boolean {
         return try {
-            val expenseData = hashMapOf(
-                "title" to expense.title,
-                "amount" to expense.amount,
-                "date" to expense.date,
-                "category" to expense.category,
+            val entryData = hashMapOf(
+                "title" to entry.title,
+                "amount" to entry.amount,
+                "date" to entry.date,
+                "category" to entry.category,
+                "type" to entry.type,
                 "updatedAt" to FieldValue.serverTimestamp()
             )
 
-            expensesCollection.document(expense.id).update(expenseData.toMap()).await()
+            entriesCollection.document(entry.id).update(entryData.toMap()).await()
 
-            if (oldAmount != null && oldAmount != expense.amount) {
+            if (oldAmount != null && oldAmount != entry.amount) {
                 val currentUser = auth.currentUser
                 if (currentUser != null) {
-                    val difference = expense.amount - oldAmount
-                    updateBudgetSpending(currentUser.uid, difference)
+                    val difference = entry.amount - oldAmount
+                    updateBudgetSpending(currentUser.uid, difference, entry.type)
                 }
             }
 
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error updating expense", e)
+            Log.e(TAG, "Error updating entry", e)
             false
         }
     }
 
-    suspend fun deleteExpense(expense: Expense): Boolean {
+    suspend fun deleteEntry(entry: Entry): Boolean {
         return try {
-            expensesCollection.document(expense.id).delete().await()
+            entriesCollection.document(entry.id).delete().await()
 
             val currentUser = auth.currentUser
             if (currentUser != null) {
-                updateBudgetSpending(currentUser.uid, -expense.amount)
+                updateBudgetSpending(currentUser.uid, -entry.amount, entry.type)
             }
 
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error deleting expense", e)
+            Log.e(TAG, "Error deleting entry", e)
             false
         }
     }
@@ -171,15 +174,15 @@ class ExpenseRepository {
         }
     }
 
-    private suspend fun updateBudgetSpending(userId: String, amount: Double) {
+    private suspend fun updateBudgetSpending(userId: String, amount: Double, type: String) {
         try {
             val monthYear = getCurrentMonthYear()
             val budgetDoc = budgetsCollection.document("${userId}_$monthYear")
             val document = budgetDoc.get().await()
 
             if (document.exists()) {
-                val expenses = getExpensesForCurrentMonth(userId, monthYear)
-                val currentSpending = expenses.sumOf { it.amount }
+                val entries = getEntriesForCurrentMonth(userId, monthYear)
+                val currentSpending = entries.filter { it.type == "expense" }.sumOf { it.amount }
 
                 budgetDoc.update("currentSpending", currentSpending)
             }
@@ -188,30 +191,31 @@ class ExpenseRepository {
         }
     }
 
-    private suspend fun getExpensesForCurrentMonth(userId: String, monthYear: String): List<Expense> {
+    private suspend fun getEntriesForCurrentMonth(userId: String, monthYear: String): List<Entry> {
         return try {
-            val result = expensesCollection
+            val result = entriesCollection
                 .whereEqualTo("userId", userId)
                 .get()
                 .await()
 
             result.documents.mapNotNull { document ->
-                val expenseDate = document.getDate("date") ?: return@mapNotNull null
-                val expenseMonthYear = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(expenseDate)
+                val entryDate = document.getDate("date") ?: return@mapNotNull null
+                val entryMonthYear = SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(entryDate)
 
-                if (expenseMonthYear == monthYear) {
-                    Expense(
+                if (entryMonthYear == monthYear) {
+                    Entry(
                         id = document.id,
                         title = document.getString("title") ?: "",
                         amount = document.getDouble("amount") ?: 0.0,
-                        date = expenseDate,
+                        date = entryDate,
                         category = document.getString("category") ?: "",
+                        type = document.getString("type") ?: "expense",
                         userId = document.getString("userId") ?: ""
                     )
                 } else null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting expenses for current month", e)
+            Log.e(TAG, "Error getting entries for current month", e)
             emptyList()
         }
     }

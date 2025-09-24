@@ -1,142 +1,110 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="16dp"
-    android:background="#F5F5F5">
+    android:orientation="vertical"
+    android:padding="16dp">
 
-    <LinearLayout
+    <!-- Toolbar -->
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorPrimary"
+        android:titleTextColor="@android:color/white" />
 
-        <!-- Statistics Card -->
-        <androidx.cardview.widget.CardView
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="8dp"
-            app:cardElevation="4dp">
+            android:orientation="vertical">
 
-            <LinearLayout
+            <!-- Total Income -->
+            <TextView
+                android:id="@+id/totalIncomeText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:text="Total Income: $0.00"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp"
+                android:textColor="@color/text_color_primary" />
 
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="📈 Expense Statistics"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="12dp" />
-
-                <TextView
-                    android:id="@+id/totalSpentText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Total Spent: $0.00"
-                    android:textSize="14sp"
-                    android:layout_marginBottom="4dp" />
-
-                <TextView
-                    android:id="@+id/averageDailyText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Daily Average: $0.00"
-                    android:textSize="14sp"
-                    android:layout_marginBottom="4dp" />
-
-                <TextView
-                    android:id="@+id/mostSpentCategoryText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Top Category: No expenses yet"
-                    android:textSize="14sp" />
-
-            </LinearLayout>
-
-        </androidx.cardview.widget.CardView>
-
-        <!-- Budget Progress Card -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="8dp"
-            app:cardElevation="4dp">
-
-            <LinearLayout
+            <!-- Total Expense -->
+            <TextView
+                android:id="@+id/totalExpenseText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:text="Total Expense: $0.00"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp"
+                android:textColor="@color/text_color_primary" />
 
-                <TextView
-                    android:id="@+id/budgetProgressText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="💰 Budget Progress:\n\nLoading..."
-                    android:textSize="14sp"
-                    android:lineSpacingExtra="4dp" />
-
-            </LinearLayout>
-
-        </androidx.cardview.widget.CardView>
-
-        <!-- Category Breakdown Card -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="8dp"
-            app:cardElevation="4dp">
-
-            <LinearLayout
+            <!-- Net Balance -->
+            <TextView
+                android:id="@+id/netBalanceText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:text="Net Balance: $0.00"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp"
+                android:textColor="@color/text_color_primary" />
 
-                <TextView
-                    android:id="@+id/categoryBreakdownText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="📊 Category Breakdown:\n\nLoading..."
-                    android:textSize="14sp"
-                    android:lineSpacingExtra="4dp" />
-
-            </LinearLayout>
-
-        </androidx.cardview.widget.CardView>
-
-        <!-- Weekly Breakdown Card -->
-        <androidx.cardview.widget.CardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardCornerRadius="8dp"
-            app:cardElevation="4dp">
-
-            <LinearLayout
+            <!-- Daily Average -->
+            <TextView
+                android:id="@+id/averageDailyText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:text="Daily Average: $0.00"
+                android:textSize="16sp"
+                android:layout_marginBottom="8dp"
+                android:textColor="@color/text_color_primary" />
 
-                <TextView
-                    android:id="@+id/weeklyBreakdownText"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="📅 Last 7 Days:\n\nLoading..."
-                    android:textSize="14sp"
-                    android:lineSpacingExtra="4dp" />
+            <!-- Top Category -->
+            <TextView
+                android:id="@+id/mostSpentCategoryText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Top Category: No entries yet"
+                android:textSize="16sp"
+                android:layout_marginBottom="16dp"
+                android:textColor="@color/text_color_primary" />
 
-            </LinearLayout>
+            <!-- Category Breakdown -->
+            <TextView
+                android:id="@+id/categoryBreakdownText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="📊 Category Breakdown:\n\nNo entries to display"
+                android:textSize="14sp"
+                android:layout_marginBottom="16dp"
+                android:textColor="@color/text_color_primary" />
 
-        </androidx.cardview.widget.CardView>
+            <!-- Weekly Breakdown -->
+            <TextView
+                android:id="@+id/weeklyBreakdownText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="📅 Last 7 Days:\n\nNo entries to display"
+                android:textSize="14sp"
+                android:layout_marginBottom="16dp"
+                android:textColor="@color/text_color_primary" />
 
-    </LinearLayout>
+            <!-- Budget Progress -->
+            <TextView
+                android:id="@+id/budgetProgressText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="💰 Budget Progress:\n\nNo data available"
+                android:textSize="14sp"
+                android:textColor="@color/text_color_primary" />
 
-</ScrollView>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
