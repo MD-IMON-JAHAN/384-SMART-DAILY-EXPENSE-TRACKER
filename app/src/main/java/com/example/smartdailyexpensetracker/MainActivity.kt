@@ -1,18 +1,23 @@
 package com.example.smartdailyexpensetracker
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.appcompat.widget.Toolbar
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.auth.ktx.auth
@@ -36,9 +41,22 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var expenseAdapter: ExpenseAdapter
 
+    companion object {
+        private const val TAG = "MainActivity"
+        private const val PREFS_NAME = "AppPrefs"
+        private const val KEY_DARK_MODE = "darkMode"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // Set Toolbar as ActionBar for menu and theme support
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
+        setSupportActionBar(toolbar)
+
+        // Apply saved theme preference
+        applySavedTheme()
 
         // Check if user is logged in
         if (auth.currentUser == null) {
@@ -65,6 +83,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        Log.d(TAG, "Menu item clicked: ${item.itemId}")
         return when (item.itemId) {
             R.id.action_sign_out -> {
                 signOut()
@@ -76,6 +95,11 @@ class MainActivity : AppCompatActivity() {
             }
             R.id.action_ai_chat -> {
                 startActivity(Intent(this, ChatActivity::class.java))
+                true
+            }
+            R.id.action_theme_toggle -> {
+                val currentDarkMode = isDarkModeEnabled()
+                toggleTheme(!currentDarkMode)
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -159,7 +183,7 @@ class MainActivity : AppCompatActivity() {
             advice?.let {
                 showAIAdviceDialog(it)
                 // Reset the LiveData after showing to prevent showing again
-                expenseViewModel.clearAIAdvice() // <-- use ViewModel method instead of setting .value from Activity
+                expenseViewModel.clearAIAdvice()
             }
         }
     }
@@ -366,5 +390,31 @@ class MainActivity : AppCompatActivity() {
     private fun updateTotalExpenses() {
         val total = expenseViewModel.getTotalExpenses()
         totalExpensesTextView.text = "Total Expenses: $${"%.2f".format(total)}"
+    }
+
+    private fun applySavedTheme() {
+        val sharedPrefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val isDarkMode = sharedPrefs.getBoolean(KEY_DARK_MODE, false)
+        AppCompatDelegate.setDefaultNightMode(
+            if (isDarkMode) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
+        )
+    }
+
+    private fun isDarkModeEnabled(): Boolean {
+        val sharedPrefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return sharedPrefs.getBoolean(KEY_DARK_MODE, false)
+    }
+
+    private fun toggleTheme(isDarkMode: Boolean) {
+        Log.d(TAG, "Toggling theme to: ${if (isDarkMode) "Dark" else "Light"}")
+        AppCompatDelegate.setDefaultNightMode(
+            if (isDarkMode) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
+        )
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_DARK_MODE, isDarkMode)
+            .apply()
+        // Force recreate activity for immediate theme change
+        recreate()
     }
 }

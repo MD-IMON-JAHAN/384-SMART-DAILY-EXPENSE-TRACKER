@@ -1,30 +1,32 @@
 package com.example.smartdailyexpensetracker
 
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.lifecycle.LifecycleOwner // If needed for observers
+import kotlinx.coroutines.launch
 
 class ChatActivity : AppCompatActivity() {
 
-    private lateinit var expenseViewModel: ExpenseViewModel
+    private val expenseViewModel: ExpenseViewModel by viewModels { ExpenseViewModelFactory(application) } // FIXED: Use Factory with application
+
     private lateinit var chatRecyclerView: RecyclerView
     private lateinit var messageInput: EditText
     private lateinit var sendButton: Button
     private lateinit var loadingProgressBar: ProgressBar
-
     private lateinit var chatAdapter: ChatAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_chat)
-
-        expenseViewModel = ViewModelProvider(this)[ExpenseViewModel::class.java]
 
         initializeViews()
         setupRecyclerView()
@@ -33,14 +35,24 @@ class ChatActivity : AppCompatActivity() {
 
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = "AI Assistant"
+    }
 
-        // Load existing chat history
-        expenseViewModel.loadChatHistory()
+    override fun onStart() {
+        super.onStart()
+        // FIXED: Call suspend function inside coroutine scope
+        lifecycleScope.launch {
+            expenseViewModel.loadChatHistory()
+        }
     }
 
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        chatRecyclerView.adapter = null
     }
 
     private fun initializeViews() {
@@ -60,15 +72,13 @@ class ChatActivity : AppCompatActivity() {
 
     private fun setupObservers() {
         expenseViewModel.chatMessages.observe(this) { messages ->
-            // Filter out any empty or invalid messages and ensure proper ordering
             val validMessages = messages
                 .filter { it.message.isNotBlank() }
-                .sortedBy { it.timestamp } // Ensure chronological order
+                .sortedBy { it.timestamp }
 
             chatAdapter = ChatAdapter(validMessages)
             chatRecyclerView.adapter = chatAdapter
 
-            // Scroll to bottom when new messages arrive
             if (validMessages.isNotEmpty()) {
                 chatRecyclerView.post {
                     chatRecyclerView.smoothScrollToPosition(validMessages.size - 1)
@@ -81,11 +91,7 @@ class ChatActivity : AppCompatActivity() {
             sendButton.isEnabled = !isLoading
             messageInput.isEnabled = !isLoading
 
-            if (isLoading) {
-                sendButton.text = "Sending..."
-            } else {
-                sendButton.text = "Send"
-            }
+            sendButton.text = if (isLoading) "Sending..." else "Send"
         }
     }
 
@@ -95,7 +101,8 @@ class ChatActivity : AppCompatActivity() {
         }
 
         messageInput.setOnKeyListener { _, keyCode, event ->
-            if (keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN) {
+            if (keyCode == KeyEvent.KEYCODE_ENTER &&
+                event.action == KeyEvent.ACTION_DOWN) {
                 sendMessage()
                 true
             } else {
@@ -103,10 +110,8 @@ class ChatActivity : AppCompatActivity() {
             }
         }
 
-        // Auto-focus on message input
         messageInput.requestFocus()
 
-        // Setup send button enabled state based on input
         messageInput.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -129,11 +134,5 @@ class ChatActivity : AppCompatActivity() {
             messageInput.text.clear()
             sendButton.isEnabled = false
         }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // Reload chat history when returning to the activity
-        expenseViewModel.loadChatHistory()
     }
 }

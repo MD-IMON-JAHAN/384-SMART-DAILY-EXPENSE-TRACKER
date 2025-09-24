@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.google.firebase.Timestamp
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -45,7 +46,7 @@ class ChatAdapter(private val messages: List<ChatMessage>) : RecyclerView.Adapte
 
         fun bind(chatMessage: ChatMessage) {
             messageText.text = chatMessage.message
-            timeText.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(chatMessage.timestamp)
+            timeText.text = formatTimestamp(chatMessage.timestamp)
         }
     }
 
@@ -55,7 +56,11 @@ class ChatAdapter(private val messages: List<ChatMessage>) : RecyclerView.Adapte
 
         fun bind(chatMessage: ChatMessage) {
             messageText.text = chatMessage.message
-            timeText.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(chatMessage.timestamp)
+            timeText.text = formatTimestamp(chatMessage.timestamp)
         }
+    }
+
+    private fun formatTimestamp(timestamp: Timestamp): String {
+        return SimpleDateFormat("HH:mm", Locale.getDefault()).format(timestamp.toDate())
     }
 }

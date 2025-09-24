@@ -3,15 +3,18 @@ package com.example.smartdailyexpensetracker
 import android.graphics.Color
 import android.os.Bundle
 import android.widget.TextView
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 class ChartsActivity : AppCompatActivity() {
 
-    private lateinit var expenseViewModel: ExpenseViewModel
+    private val expenseViewModel: ExpenseViewModel by viewModels() // FIXED: Use by viewModels() for simplicity; no Factory needed here
+
     private lateinit var totalSpentText: TextView
     private lateinit var averageDailyText: TextView
     private lateinit var mostSpentCategoryText: TextView
@@ -23,11 +26,14 @@ class ChartsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_charts)
 
-        // Initialize ViewModel
-        expenseViewModel = ViewModelProvider(this)[ExpenseViewModel::class.java]
-
         initializeViews()
         setupObservers()
+
+        // FIXED: Call suspend functions inside coroutine scope
+        lifecycleScope.launch {
+            expenseViewModel.loadExpenses()
+            expenseViewModel.loadBudget()
+        }
 
         // Set up toolbar
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
@@ -61,9 +67,6 @@ class ChartsActivity : AppCompatActivity() {
                 }
             }
         }
-
-        expenseViewModel.loadExpenses()
-        expenseViewModel.loadBudget()
     }
 
     private fun updateStatistics(expenses: List<Expense>, budget: Budget?) {

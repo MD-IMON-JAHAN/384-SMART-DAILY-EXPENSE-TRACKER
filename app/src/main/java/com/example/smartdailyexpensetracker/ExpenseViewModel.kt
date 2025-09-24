@@ -1,13 +1,23 @@
 package com.example.smartdailyexpensetracker
 
-import androidx.lifecycle.*
+import android.app.Application
+import android.util.Log
+import android.widget.Toast
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
 import com.example.smartdailyexpensetracker.ai.GeminiAIService
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.util.Date
 
-class ExpenseViewModel : ViewModel() {
+class ExpenseViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = ExpenseRepository()
     private val geminiService = GeminiAIService()
@@ -29,51 +39,66 @@ class ExpenseViewModel : ViewModel() {
     val chatMessages: LiveData<List<ChatMessage>> = _chatMessages
 
     init {
-        loadExpenses()
-        loadBudget()
-        loadChatHistory()
+        // Kick off initial loading
+        loadData()
+        // If your repository defines enableNetwork(), keep it; otherwise remove this line
+        try {
+            repository.enableNetwork()
+        } catch (ignored: Exception) { /* optional */ }
     }
 
-    fun loadExpenses() {
-        _isLoading.value = true
+    override fun onCleared() {
+        super.onCleared()
+        try {
+            repository.clear()
+        } catch (ignored: Exception) { /* optional */ }
+    }
+
+    private fun loadData() {
         viewModelScope.launch {
-            try {
-                val expensesList = repository.getExpenses()
-                _expenses.value = expensesList
-                checkBudgetWarning()
-            } catch (e: Exception) {
-                _expenses.value = emptyList()
-            } finally {
-                _isLoading.value = false
-            }
+            loadExpenses()
+            loadBudget()
+            loadChatHistory()
         }
     }
 
-    fun loadBudget() {
-        viewModelScope.launch {
-            try {
-                _budget.value = repository.getCurrentBudget()
-                checkBudgetWarning()
-            } catch (e: Exception) {
-                _budget.value = null
+    // Explicit Unit return type avoids type-inference recursion problems
+    suspend fun loadExpenses(): Unit = executeWithLoading {
+        val list = withContext(Dispatchers.IO) {
+            repository.getExpenses() // repository returns non-null List<Expense>
+        }
+        // Removed isActive check - coroutine cancellation is handled automatically
+        _expenses.postValue(list)
+        checkBudgetWarning()
+    }
+
+    suspend fun loadBudget(): Unit = executeWithLoading {
+        try {
+            val b = withContext(Dispatchers.IO) {
+                repository.getCurrentBudget()
             }
+            // Removed isActive check
+            _budget.postValue(b)
+            checkBudgetWarning()
+        } catch (e: Exception) {
+            Log.e("ExpenseViewModel", "Error loading budget: ${e.message}", e)
+            // Show user-friendly message
+            _budget.postValue(null)
+            Toast.makeText(getApplication(), "Error loading budget: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
-    fun loadChatHistory() {
-        viewModelScope.launch {
-            try {
-                val currentUser = auth.currentUser
-                val messages = if (currentUser != null) {
-                    repository.getChatMessages(currentUser.uid)
-                } else {
-                    repository.getChatMessages("system")
-                }
-                _chatMessages.value = messages
-            } catch (e: Exception) {
-                _chatMessages.value = emptyList()
+    suspend fun loadChatHistory(): Unit = executeWithLoading {
+        val currentUser = auth.currentUser
+        val messages = withContext(Dispatchers.IO) {
+            if (currentUser != null) {
+                repository.getChatMessages(currentUser.uid)
+            } else {
+                repository.getChatMessages("system")
             }
         }
+        // Removed isActive check
+        _chatMessages.postValue(messages)
     }
 
     private fun checkBudgetWarning() {
@@ -87,110 +112,129 @@ class ExpenseViewModel : ViewModel() {
 
     fun getAIAdvice() {
         viewModelScope.launch {
-            try {
-                _isLoading.value = true
+            executeWithLoading {
                 val currentBudget = _budget.value
                 if (currentBudget != null) {
                     val recentExpenses = _expenses.value?.take(5) ?: emptyList()
-                    val advice = geminiService.getBudgetAdvice(
-                        currentBudget.monthlyBudget,
-                        currentBudget.currentSpending,
-                        recentExpenses
-                    )
-                    _aiAdvice.value = advice
+                    val advice = withContext(Dispatchers.IO) {
+                        geminiService.getBudgetAdvice(
+                            currentBudget.monthlyBudget,
+                            currentBudget.currentSpending,
+                            recentExpenses
+                        )
+                    }
+                    // Removed isActive check
+                    _aiAdvice.postValue(advice)
 
                     val currentUser = auth.currentUser
                     if (currentUser != null) {
                         val aiMessage = ChatMessage(
                             userId = currentUser.uid,
                             message = "💰 Budget Alert Advice:\n\n$advice",
-                            isUser = false
+                            isUser = false,
+                            timestamp = Timestamp.now()
                         )
-                        repository.saveChatMessage(aiMessage)
+                        withContext(Dispatchers.IO) { repository.saveChatMessage(aiMessage) }
+                        // Removed isActive check
                         loadChatHistory()
                     }
                 } else {
-                    _aiAdvice.value = "Please set a monthly budget first to get AI advice!"
+                    _aiAdvice.postValue("Please set a monthly budget first to get AI advice!")
                 }
-            } catch (e: Exception) {
-                _aiAdvice.value = "Error getting AI advice: ${e.message}"
-            } finally {
-                _isLoading.value = false
             }
         }
     }
 
-    /** Public helper to let Activities/Fragments clear the AI advice after it was handled */
     fun clearAIAdvice() {
-        _aiAdvice.value = null
+        _aiAdvice.postValue(null)
     }
 
     fun setMonthlyBudget(amount: Double) {
         viewModelScope.launch {
-            val success = repository.setMonthlyBudget(amount)
-            if (success) {
-                loadBudget()
-                val currentUser = auth.currentUser
-                if (currentUser != null) {
-                    val message = ChatMessage(
-                        userId = currentUser.uid,
-                        message = "✅ Monthly budget set to $${amount}",
-                        isUser = false
-                    )
-                    repository.saveChatMessage(message)
-                    loadChatHistory()
+            executeWithLoading {
+                val success = withContext(Dispatchers.IO) { repository.setMonthlyBudget(amount) }
+                if (success) {
+                    loadBudget()
+                    val currentUser = auth.currentUser
+                    if (currentUser != null) {
+                        val message = ChatMessage(
+                            userId = currentUser.uid,
+                            message = "✅ Monthly budget set to $${"%.2f".format(amount)}",
+                            isUser = false,
+                            timestamp = Timestamp.now()
+                        )
+                        withContext(Dispatchers.IO) { repository.saveChatMessage(message) }
+                        // Removed isActive check
+                        loadChatHistory()
+                    }
+                } else {
+                    Toast.makeText(getApplication(), "Failed to set budget", Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
 
     fun addExpense(title: String, amount: Double, category: String) {
-        val currentUser = auth.currentUser
-        if (currentUser == null) return
+        val currentUser = auth.currentUser ?: return
 
         viewModelScope.launch {
-            val expense = Expense(
-                title = title,
-                amount = amount,
-                date = Date(),
-                category = category,
-                userId = currentUser.uid
-            )
+            executeWithLoading {
+                val expense = Expense(
+                    title = title,
+                    amount = amount,
+                    date = Date(), // java.util.Date
+                    category = category,
+                    userId = currentUser.uid
+                )
 
-            val expenseId = repository.addExpense(expense)
-            if (expenseId.isNotEmpty()) {
-                loadExpenses()
-                loadBudget()
+                val expenseId = withContext(Dispatchers.IO) { repository.addExpense(expense) }
+                // Removed isActive check
+                if (expenseId.isNotEmpty()) {
+                    loadExpenses()
+                    loadBudget()
+                } else {
+                    Toast.makeText(getApplication(), "Failed to add expense", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
 
     fun updateExpense(expense: Expense, title: String, amount: Double, category: String) {
         viewModelScope.launch {
-            val oldAmount = expense.amount
-            val updatedExpense = expense.copy(
-                title = title,
-                amount = amount,
-                category = category,
-                date = Date()
-            )
+            executeWithLoading {
+                val oldAmount = expense.amount
+                val updatedExpense = expense.copy(
+                    title = title,
+                    amount = amount,
+                    category = category,
+                    date = Date()
+                )
 
-            val success = repository.updateExpense(updatedExpense, oldAmount)
-            if (success) {
-                loadExpenses()
-                loadBudget()
-                checkBudgetWarning()
+                val success = withContext(Dispatchers.IO) { repository.updateExpense(updatedExpense, oldAmount) }
+                // Removed isActive check
+                if (success) {
+                    loadExpenses()
+                    loadBudget()
+                    checkBudgetWarning()
+                } else {
+                    Toast.makeText(getApplication(), "Failed to update expense", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
 
     fun deleteExpense(expense: Expense) {
         viewModelScope.launch {
-            val success = repository.deleteExpense(expense)
-            if (success) {
-                loadExpenses()
-                loadBudget()
-                checkBudgetWarning()
+            executeWithLoading {
+                val success = withContext(Dispatchers.IO) { repository.deleteExpense(expense) }
+                // Removed isActive check
+                if (success) {
+                    loadExpenses()
+                    loadBudget()
+                    checkBudgetWarning()
+                } else {
+                    Toast.makeText(getApplication(), "Failed to delete expense", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -200,51 +244,61 @@ class ExpenseViewModel : ViewModel() {
     }
 
     fun sendChatMessage(message: String) {
-        val currentUser = auth.currentUser
-        if (currentUser == null) return
-
-        _isLoading.value = true
+        val currentUser = auth.currentUser ?: return
+        // Prevent concurrent sends
+        if (_isLoading.value == true) return
 
         viewModelScope.launch {
-            try {
+            executeWithLoading {
+                // Save user's message
                 val userMessage = ChatMessage(
                     userId = currentUser.uid,
                     message = message,
-                    isUser = true
+                    isUser = true,
+                    timestamp = Timestamp.now()
                 )
-
-                repository.saveChatMessage(userMessage)
+                withContext(Dispatchers.IO) { repository.saveChatMessage(userMessage) }
+                // Removed isActive check
                 loadChatHistory()
 
-                val aiResponse = geminiService.chatWithAI(message)
+                // Get AI response with timeout
+                val aiResponse = try {
+                    withTimeout(30_000) {
+                        withContext(Dispatchers.IO) { geminiService.chatWithAI(message) }
+                    }.takeIf { it.isNotBlank() } ?: "Sorry, I couldn't generate a response right now."
+                } catch (e: Exception) {
+                    "Sorry, the request timed out or failed. (${e.message})"
+                }
 
+                // Removed isActive check
+
+                // Save AI message
                 val aiMessage = ChatMessage(
-                    userId = currentUser.uid,
+                    userId = "ai",
                     message = aiResponse,
-                    isUser = false
+                    isUser = false,
+                    timestamp = Timestamp.now()
                 )
-
-                repository.saveChatMessage(aiMessage)
+                withContext(Dispatchers.IO) { repository.saveChatMessage(aiMessage) }
+                // Removed isActive check
                 loadChatHistory()
-
-            } catch (e: Exception) {
-                val errorMessage = ChatMessage(
-                    userId = currentUser.uid,
-                    message = "Sorry, I encountered an error: ${e.message}",
-                    isUser = false
-                )
-                repository.saveChatMessage(errorMessage)
-                loadChatHistory()
-            } finally {
-                _isLoading.value = false
             }
         }
     }
 
-    fun saveWelcomeMessage(chatMessage: ChatMessage) {
-        viewModelScope.launch {
-            repository.saveChatMessage(chatMessage)
-            loadChatHistory()
+    /**
+     * Runs the given suspend block while toggling loading state and catching errors.
+     * Explicit Unit return type avoids type recursion errors Kotlin can show.
+     */
+    private suspend fun executeWithLoading(block: suspend () -> Unit): Unit {
+        _isLoading.postValue(true)
+        try {
+            block()
+        } catch (e: Exception) {
+            Log.e("ExpenseViewModel", "Error executing operation: ${e.message}", e)
+            Toast.makeText(getApplication(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+        } finally {
+            _isLoading.postValue(false)
         }
     }
 }

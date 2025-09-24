@@ -2,11 +2,14 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <!-- User email (display only) -->
     <item
         android:id="@+id/action_user_email"
         android:title="User"
-        app:showAsAction="always" />
+        app:showAsAction="always"
+        android:enabled="false" />
 
+    <!-- Main actions -->
     <item
         android:id="@+id/action_view_charts"
         android:title="Charts"
@@ -17,6 +20,12 @@
         android:title="AI Chat"
         app:showAsAction="ifRoom" />
 
+    <item
+        android:id="@+id/action_theme_toggle"
+        android:title="Toggle Theme"
+        app:showAsAction="ifRoom" />
+
+    <!-- Sign out in overflow menu -->
     <item
         android:id="@+id/action_sign_out"
         android:title="Sign Out"

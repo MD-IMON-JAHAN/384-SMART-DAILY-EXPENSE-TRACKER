@@ -1,24 +1,24 @@
 <resources>
-    <!-- Primary Colors (Light Mode) -->
+    <!-- Primary Colors (Dark Mode) -->
     <color name="purple_200">#FFBB86FC</color>
     <color name="purple_500">#FF6200EE</color>
     <color name="purple_700">#FF3700B3</color>
     <color name="teal_200">#FF03DAC5</color>
     <color name="teal_500">#FF018786</color>
-    <color name="teal_700">#FF018786</color>
+    <color name="teal_700">#FF01579B</color>
 
     <!-- Basic Colors -->
     <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+    <color name="white">#FFCCCCCC</color>
 
-    <!-- Material Design Colors (Light Mode) -->
-    <color name="design_default_color_primary">#6200EE</color>
-    <color name="design_default_color_primary_dark">#3700B3</color>
+    <!-- Material Design Colors (Dark Mode) -->
+    <color name="design_default_color_primary">#BB86FC</color>
+    <color name="design_default_color_primary_dark">#CF6679</color>
     <color name="design_default_color_secondary">#03DAC6</color>
-    <color name="design_default_color_error">#B00020</color>
+    <color name="design_default_color_error">#CF6679</color>
 
-    <!-- Chart Colors (Light Mode) -->
-    <color name="chart_red">#FF6B6B</color>
+    <!-- Chart Colors (Dark Mode) -->
+    <color name="chart_red">#FF8787</color>
     <color name="chart_teal">#4ECDC4</color>
     <color name="chart_blue">#45B7D1</color>
     <color name="chart_green">#96CEB4</color>
@@ -27,11 +27,11 @@
     <color name="chart_light_blue">#54A0FF</color>
     <color name="chart_purple">#5F27CD</color>
 
-    <!-- Additional Colors for UI Elements (Light Mode) -->
-    <color name="text_color_primary">#212121</color>
-    <color name="text_color_secondary">#757575</color>
-    <color name="background_card">#FFFFFF</color>
+    <!-- Additional Colors for UI Elements (Dark Mode) -->
+    <color name="text_color_primary">#E0E0E0</color>
+    <color name="text_color_secondary">#B0BEC5</color>
+    <color name="background_card">#424242</color>
 
     <!-- Menu specific colors -->
-    <color name="menu_text_color">#212121</color>
+    <color name="menu_text_color">#E0E0E0</color>
 </resources>

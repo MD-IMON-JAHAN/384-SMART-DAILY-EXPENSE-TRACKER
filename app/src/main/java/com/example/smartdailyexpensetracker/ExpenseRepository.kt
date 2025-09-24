@@ -1,6 +1,7 @@
 package com.example.smartdailyexpensetracker
 
 import android.util.Log
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ktx.firestore
@@ -11,14 +12,21 @@ import java.util.Date
 import java.util.Locale
 
 class ExpenseRepository {
-    private val db = Firebase.firestore
-    private val auth = Firebase.auth
-    private val expensesCollection = db.collection("expenses")
-    private val budgetsCollection = db.collection("budgets")
-    private val chatCollection = db.collection("chats")
+    private val db by lazy { Firebase.firestore }
+    private val auth by lazy { Firebase.auth }
+    private val expensesCollection get() = db.collection("expenses")
+    private val budgetsCollection get() = db.collection("budgets")
+    private val chatCollection get() = db.collection("chats")
 
     companion object {
         private const val TAG = "ExpenseRepository"
+    }
+
+    fun clear() {
+        // Clear any cached data if needed
+    }
+    fun enableNetwork() {
+        db.enableNetwork()
     }
 
     private fun getCurrentMonthYear(): String {
@@ -26,29 +34,25 @@ class ExpenseRepository {
         return format.format(Date())
     }
 
-    // Expense methods
     suspend fun getExpenses(): List<Expense> {
         return try {
-            val currentUser = auth.currentUser
-            if (currentUser == null) {
-                emptyList()
-            } else {
-                val result = expensesCollection
-                    .whereEqualTo("userId", currentUser.uid)
-                    .get()
-                    .await()
+            val currentUser = auth.currentUser ?: return emptyList()
 
-                result.documents.map { document ->
-                    Expense(
-                        id = document.id,
-                        title = document.getString("title") ?: "",
-                        amount = document.getDouble("amount") ?: 0.0,
-                        date = document.getDate("date") ?: Date(),
-                        category = document.getString("category") ?: "",
-                        userId = document.getString("userId") ?: ""
-                    )
-                }.sortedByDescending { it.date }
-            }
+            val result = expensesCollection
+                .whereEqualTo("userId", currentUser.uid)
+                .get()
+                .await()
+
+            result.documents.map { document ->
+                Expense(
+                    id = document.id,
+                    title = document.getString("title") ?: "",
+                    amount = document.getDouble("amount") ?: 0.0,
+                    date = document.getDate("date") ?: Date(),
+                    category = document.getString("category") ?: "",
+                    userId = document.getString("userId") ?: ""
+                )
+            }.sortedByDescending { it.date }
         } catch (e: Exception) {
             Log.e(TAG, "Error getting expenses", e)
             emptyList()
@@ -57,23 +61,20 @@ class ExpenseRepository {
 
     suspend fun addExpense(expense: Expense): String {
         return try {
-            val currentUser = auth.currentUser
-            if (currentUser == null) {
-                ""
-            } else {
-                val expenseData = hashMapOf(
-                    "title" to expense.title,
-                    "amount" to expense.amount,
-                    "date" to expense.date,
-                    "category" to expense.category,
-                    "userId" to currentUser.uid,
-                    "createdAt" to FieldValue.serverTimestamp()
-                )
+            val currentUser = auth.currentUser ?: return ""
 
-                val result = expensesCollection.add(expenseData).await()
-                updateBudgetSpending(currentUser.uid, expense.amount)
-                result.id
-            }
+            val expenseData = hashMapOf(
+                "title" to expense.title,
+                "amount" to expense.amount,
+                "date" to expense.date,
+                "category" to expense.category,
+                "userId" to currentUser.uid,
+                "createdAt" to FieldValue.serverTimestamp()
+            )
+
+            val result = expensesCollection.add(expenseData).await()
+            updateBudgetSpending(currentUser.uid, expense.amount)
+            result.id
         } catch (e: Exception) {
             Log.e(TAG, "Error adding expense", e)
             ""
@@ -123,27 +124,23 @@ class ExpenseRepository {
         }
     }
 
-    // Budget methods
     suspend fun setMonthlyBudget(amount: Double): Boolean {
         return try {
-            val currentUser = auth.currentUser
-            if (currentUser == null) {
-                false
-            } else {
-                val monthYear = getCurrentMonthYear()
-                val budgetData = hashMapOf(
-                    "userId" to currentUser.uid,
-                    "monthlyBudget" to amount,
-                    "currentSpending" to 0.0,
-                    "monthYear" to monthYear,
-                    "createdAt" to FieldValue.serverTimestamp()
-                )
+            val currentUser = auth.currentUser ?: return false
 
-                budgetsCollection.document("${currentUser.uid}_$monthYear")
-                    .set(budgetData)
-                    .await()
-                true
-            }
+            val monthYear = getCurrentMonthYear()
+            val budgetData = hashMapOf(
+                "userId" to currentUser.uid,
+                "monthlyBudget" to amount,
+                "currentSpending" to 0.0,
+                "monthYear" to monthYear,
+                "createdAt" to FieldValue.serverTimestamp()
+            )
+
+            budgetsCollection.document("${currentUser.uid}_$monthYear")
+                .set(budgetData)
+                .await()
+            true
         } catch (e: Exception) {
             Log.e(TAG, "Error setting budget", e)
             false
@@ -152,24 +149,21 @@ class ExpenseRepository {
 
     suspend fun getCurrentBudget(): Budget? {
         return try {
-            val currentUser = auth.currentUser
-            if (currentUser == null) {
-                null
-            } else {
-                val monthYear = getCurrentMonthYear()
-                val document = budgetsCollection.document("${currentUser.uid}_$monthYear").get().await()
+            val currentUser = auth.currentUser ?: return null
 
-                if (document.exists()) {
-                    Budget(
-                        id = document.id,
-                        userId = document.getString("userId") ?: "",
-                        monthlyBudget = document.getDouble("monthlyBudget") ?: 0.0,
-                        currentSpending = document.getDouble("currentSpending") ?: 0.0,
-                        monthYear = document.getString("monthYear") ?: monthYear
-                    )
-                } else {
-                    null
-                }
+            val monthYear = getCurrentMonthYear()
+            val document = budgetsCollection.document("${currentUser.uid}_$monthYear").get().await()
+
+            if (document.exists()) {
+                Budget(
+                    id = document.id,
+                    userId = document.getString("userId") ?: "",
+                    monthlyBudget = document.getDouble("monthlyBudget") ?: 0.0,
+                    currentSpending = document.getDouble("currentSpending") ?: 0.0,
+                    monthYear = document.getString("monthYear") ?: monthYear
+                )
+            } else {
+                null
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error getting budget", e)
@@ -184,7 +178,6 @@ class ExpenseRepository {
             val document = budgetDoc.get().await()
 
             if (document.exists()) {
-                // Instead of relying on currentSpending, we'll recalculate from expenses
                 val expenses = getExpensesForCurrentMonth(userId, monthYear)
                 val currentSpending = expenses.sumOf { it.amount }
 
@@ -194,7 +187,7 @@ class ExpenseRepository {
             Log.e(TAG, "Error updating budget spending", e)
         }
     }
-    // Add this helper function:
+
     private suspend fun getExpensesForCurrentMonth(userId: String, monthYear: String): List<Expense> {
         return try {
             val result = expensesCollection
@@ -215,9 +208,7 @@ class ExpenseRepository {
                         category = document.getString("category") ?: "",
                         userId = document.getString("userId") ?: ""
                     )
-                } else {
-                    null
-                }
+                } else null
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error getting expenses for current month", e)
@@ -225,15 +216,13 @@ class ExpenseRepository {
         }
     }
 
-    // Chat methods
-    // In the saveChatMessage function, fix the timestamp issue:
     suspend fun saveChatMessage(message: ChatMessage): Boolean {
         return try {
             val chatData = hashMapOf(
                 "userId" to message.userId,
                 "message" to message.message,
                 "isUser" to message.isUser,
-                "timestamp" to FieldValue.serverTimestamp() // Use server timestamp instead of local
+                "timestamp" to Timestamp.now()  // Client-side for immediate consistency
             )
 
             chatCollection.document(message.userId)
@@ -247,7 +236,6 @@ class ExpenseRepository {
         }
     }
 
-    // Fix the getChatMessages function to handle server timestamps:
     suspend fun getChatMessages(userId: String): List<ChatMessage> {
         return try {
             val result = chatCollection.document(userId)
@@ -257,8 +245,28 @@ class ExpenseRepository {
                 .await()
 
             result.documents.map { document ->
-                // Handle server timestamp conversion
-                val timestamp = document.getDate("timestamp") ?: Date()
+                // FIXED: Handle multiple possible types for 'timestamp' to avoid cast exceptions
+                val rawTimestamp = document.get("timestamp")
+                val timestamp: Timestamp = when (rawTimestamp) {
+                    is Timestamp -> rawTimestamp
+                    is Date -> Timestamp(rawTimestamp)
+                    is Long -> Timestamp(rawTimestamp / 1000, ((rawTimestamp % 1000) * 1000000).toInt())
+                    is String -> try {
+                        val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()).apply {
+                            timeZone = java.util.TimeZone.getTimeZone("UTC")
+                        }
+                        val date = dateFormat.parse(rawTimestamp) ?: Date()
+                        Timestamp(date)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to parse string timestamp: $rawTimestamp", e)
+                        Timestamp.now()
+                    }
+                    null -> Timestamp.now()
+                    else -> {
+                        Log.w(TAG, "Unexpected timestamp type: ${rawTimestamp.javaClass.simpleName}")
+                        Timestamp.now()
+                    }
+                }
 
                 ChatMessage(
                     userId = document.getString("userId") ?: "",
