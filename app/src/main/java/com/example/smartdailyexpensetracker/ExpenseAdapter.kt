@@ -8,8 +8,11 @@ import androidx.recyclerview.widget.RecyclerView
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-class ExpenseAdapter(private val expenses: List<Expense>) :
-    RecyclerView.Adapter<ExpenseAdapter.ExpenseViewHolder>() {
+class ExpenseAdapter(
+    private val expenses: List<Expense>,
+    private val onItemClick: (Expense) -> Unit,
+    private val onItemLongClick: (Expense) -> Boolean
+) : RecyclerView.Adapter<ExpenseAdapter.ExpenseViewHolder>() {
 
     class ExpenseViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val titleTextView: TextView = itemView.findViewById(R.id.expenseTitle)
@@ -32,6 +35,15 @@ class ExpenseAdapter(private val expenses: List<Expense>) :
         holder.amountTextView.text = "$${expense.amount}"
         holder.dateTextView.text = dateFormat.format(expense.date)
         holder.categoryTextView.text = expense.category
+
+        // Set click listeners
+        holder.itemView.setOnClickListener {
+            onItemClick(expense)
+        }
+
+        holder.itemView.setOnLongClickListener {
+            onItemLongClick(expense)
+        }
     }
 
     override fun getItemCount(): Int {

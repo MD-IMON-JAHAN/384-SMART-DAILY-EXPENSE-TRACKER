@@ -7,6 +7,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
@@ -25,6 +26,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var addExpenseButton: Button
     private lateinit var expensesRecyclerView: RecyclerView
     private lateinit var totalExpensesTextView: TextView
+    private lateinit var loadingProgressBar: ProgressBar
 
     private lateinit var expenseAdapter: ExpenseAdapter
 
@@ -47,6 +49,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
+
+        // Add user email to menu
+        val userItem = menu.findItem(R.id.action_user_email)
+        val currentUser = auth.currentUser
+        userItem?.title = currentUser?.email ?: "User"
+
         return true
     }
 
@@ -66,7 +74,6 @@ class MainActivity : AppCompatActivity() {
         finish()
     }
 
-    // ... rest of your existing code remains the same
     private fun initializeViews() {
         expenseTitle = findViewById(R.id.expenseTitle)
         expenseAmount = findViewById(R.id.expenseAmount)
@@ -74,10 +81,18 @@ class MainActivity : AppCompatActivity() {
         addExpenseButton = findViewById(R.id.addExpenseButton)
         expensesRecyclerView = findViewById(R.id.expensesRecyclerView)
         totalExpensesTextView = findViewById(R.id.totalExpenses)
+        loadingProgressBar = findViewById(R.id.loadingProgressBar)
     }
 
     private fun setupRecyclerView() {
-        expenseAdapter = ExpenseAdapter(emptyList())
+        expenseAdapter = ExpenseAdapter(
+            emptyList(),
+            onItemClick = { expense -> showEditDialog(expense) },
+            onItemLongClick = { expense ->
+                showDeleteConfirmation(expense)
+                true
+            }
+        )
         expensesRecyclerView.layoutManager = LinearLayoutManager(this)
         expensesRecyclerView.adapter = expenseAdapter
     }
@@ -90,10 +105,47 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupObservers() {
         expenseViewModel.expenses.observe(this) { expenses ->
-            expenseAdapter = ExpenseAdapter(expenses)
+            expenseAdapter = ExpenseAdapter(
+                expenses,
+                onItemClick = { expense -> showEditDialog(expense) },
+                onItemLongClick = { expense ->
+                    showDeleteConfirmation(expense)
+                    true
+                }
+            )
             expensesRecyclerView.adapter = expenseAdapter
             updateTotalExpenses()
         }
+
+        expenseViewModel.isLoading.observe(this) { isLoading ->
+            loadingProgressBar.visibility = if (isLoading) ProgressBar.VISIBLE else ProgressBar.GONE
+        }
+    }
+
+    private fun showEditDialog(expense: Expense) {
+        val dialog = EditExpenseDialog(
+            expense,
+            onUpdate = { expenseToUpdate, title, amount, category ->
+                expenseViewModel.updateExpense(expenseToUpdate, title, amount, category)
+                Toast.makeText(this, "Expense updated", Toast.LENGTH_SHORT).show()
+            },
+            onDelete = { expenseToDelete ->
+                showDeleteConfirmation(expenseToDelete)
+            }
+        )
+        dialog.show(supportFragmentManager, "EditExpenseDialog")
+    }
+
+    private fun showDeleteConfirmation(expense: Expense) {
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Delete Expense")
+            .setMessage("Are you sure you want to delete '${expense.title}'?")
+            .setPositiveButton("Delete") { _, _ ->
+                expenseViewModel.deleteExpense(expense)
+                Toast.makeText(this, "Expense deleted", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun addNewExpense() {
@@ -125,6 +177,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateTotalExpenses() {
         val total = expenseViewModel.getTotalExpenses()
-        totalExpensesTextView.text = "Total: $$total"
+        totalExpensesTextView.text = "Total: $${String.format("%.2f", total)}"
     }
 }

@@ -50,10 +50,18 @@
         android:id="@+id/totalExpenses"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Total: $0.0"
+        android:text="Total: $0.00"
         android:textSize="18sp"
         android:textStyle="bold"
         android:layout_marginBottom="16dp" />
+
+    <ProgressBar
+        android:id="@+id/loadingProgressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone"
+        android:layout_marginBottom="8dp" />
 
     <TextView
         android:layout_width="match_parent"
