@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "216017966947",
+    "project_id": "smart-daily-expense-tracker",
+    "storage_bucket": "smart-daily-expense-tracker.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:216017966947:android:04c63faedc844925ace556",
+        "android_client_info": {
+          "package_name": "com.example.smartdailyexpensetracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCSjhAkgdGd8aUAH_J3EBIxTIzZftFbSRg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
