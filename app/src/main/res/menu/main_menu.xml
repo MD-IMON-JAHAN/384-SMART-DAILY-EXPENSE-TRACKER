@@ -8,6 +8,12 @@
         app:showAsAction="always" />
 
     <item
+        android:id="@+id/action_view_charts"
+        android:title="View Charts"
+        android:icon="@android:drawable/ic_menu_gallery"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/action_sign_out"
         android:title="Sign Out"
         app:showAsAction="never" />

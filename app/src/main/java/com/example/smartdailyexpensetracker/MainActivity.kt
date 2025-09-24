@@ -58,15 +58,21 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
+    // In your MainActivity.kt, ensure you have this in onOptionsItemSelected:
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_sign_out -> {
                 signOut()
                 true
             }
+            R.id.action_view_charts -> {
+                startActivity(Intent(this, ChartsActivity::class.java))
+                true
+            }
             else -> super.onOptionsItemSelected(item)
         }
     }
+
 
     private fun signOut() {
         auth.signOut()
