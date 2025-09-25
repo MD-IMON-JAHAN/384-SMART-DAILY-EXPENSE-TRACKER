@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -50,11 +51,19 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 
     suspend fun loadEntries() {
         executeWithLoading {
-            val list = withContext(Dispatchers.IO) {
-                repository.getEntries()
+            try {
+                val list = withContext(Dispatchers.IO) {
+                    repository.getEntries()
+                }
+                _entries.postValue(list)
+                checkBudgetWarning()
+            } catch (e: CancellationException) {
+                // Re-throw cancellation exceptions to respect coroutine cancellation
+                throw e
+            } catch (e: Exception) {
+                Log.e("ExpenseViewModel", "Error loading entries: ${e.message}", e)
+                _entries.postValue(emptyList())
             }
-            _entries.postValue(list)
-            checkBudgetWarning()
         }
     }
 
@@ -66,6 +75,8 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                 }
                 _budget.postValue(b)
                 checkBudgetWarning()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("ExpenseViewModel", "Error loading budget: ${e.message}", e)
                 _budget.postValue(null)
@@ -75,10 +86,17 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
 
     suspend fun loadChatHistory() {
         executeWithLoading {
-            val messages = withContext(Dispatchers.IO) {
-                repository.getChatMessages()
+            try {
+                val messages = withContext(Dispatchers.IO) {
+                    repository.getChatMessages()
+                }
+                _chatMessages.postValue(messages)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("ExpenseViewModel", "Error loading chat history: ${e.message}", e)
+                _chatMessages.postValue(emptyList())
             }
-            _chatMessages.postValue(messages)
         }
     }
 
@@ -106,14 +124,17 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                     }
                     _aiAdvice.postValue(advice)
 
-                    val aiMessage = ChatMessage(
-                        userId = auth.currentUser?.uid ?: "",
-                        message = "💰 Budget Alert Advice:\n\n$advice",
-                        isUser = false,
-                        timestamp = Timestamp.now()
-                    )
-                    withContext(Dispatchers.IO) { repository.saveChatMessage(aiMessage) }
-                    loadChatHistory()
+                    val currentUser = auth.currentUser
+                    if (currentUser != null) {
+                        val aiMessage = ChatMessage(
+                            userId = currentUser.uid,
+                            message = "💰 Budget Alert Advice:\n\n$advice",
+                            isUser = false,
+                            timestamp = Timestamp.now()
+                        )
+                        withContext(Dispatchers.IO) { repository.saveChatMessage(aiMessage) }
+                        loadChatHistory()
+                    }
                 } else {
                     _aiAdvice.postValue("Please set a monthly budget first to get AI advice!")
                 }
@@ -131,14 +152,17 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
                 val success = withContext(Dispatchers.IO) { repository.setMonthlyBudget(amount) }
                 if (success) {
                     loadBudget()
-                    val message = ChatMessage(
-                        userId = auth.currentUser?.uid ?: "",
-                        message = "✅ Monthly budget set to $${"%.2f".format(amount)}",
-                        isUser = false,
-                        timestamp = Timestamp.now()
-                    )
-                    withContext(Dispatchers.IO) { repository.saveChatMessage(message) }
-                    loadChatHistory()
+                    val currentUser = auth.currentUser
+                    if (currentUser != null) {
+                        val message = ChatMessage(
+                            userId = currentUser.uid,
+                            message = "✅ Monthly budget set to $${"%.2f".format(amount)}",
+                            isUser = false,
+                            timestamp = Timestamp.now()
+                        )
+                        withContext(Dispatchers.IO) { repository.saveChatMessage(message) }
+                        loadChatHistory()
+                    }
                 } else {
                     Toast.makeText(getApplication(), "Failed to set budget", Toast.LENGTH_SHORT).show()
                 }
@@ -260,11 +284,30 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         _isLoading.postValue(true)
         try {
             block()
+        } catch (e: CancellationException) {
+            // Re-throw cancellation to properly handle coroutine lifecycle
+            throw e
         } catch (e: Exception) {
-            Log.e("ExpenseViewModel", "Error executing operation: ${e.message}", e)
-            Toast.makeText(getApplication(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            if (isCancellationException(e)) {
+                // Treat wrapped cancellations as normal (no logging/error UI)
+                throw CancellationException("Operation cancelled")
+            } else {
+                Log.e("ExpenseViewModel", "Error executing operation: ${e.message}", e)
+                Toast.makeText(getApplication(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         } finally {
             _isLoading.postValue(false)
         }
+    }
+
+    private fun isCancellationException(throwable: Throwable?): Boolean {
+        var t = throwable
+        while (t != null) {
+            if (t is CancellationException) {
+                return true
+            }
+            t = t.cause
+        }
+        return false
     }
 }

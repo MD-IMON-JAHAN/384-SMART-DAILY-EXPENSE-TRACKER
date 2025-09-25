@@ -6,6 +6,7 @@ import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -48,8 +49,12 @@ class ExpenseRepository {
                 )
             }.sortedByDescending { it.date }
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting entries", e)
-            emptyList()
+            if (isCancellationException(e)) {
+                throw CancellationException("Get entries cancelled")
+            } else {
+                Log.e(TAG, "Error getting entries", e)
+                emptyList()
+            }
         }
     }
 
@@ -71,8 +76,12 @@ class ExpenseRepository {
             updateBudgetSpending(currentUser.uid)
             result.id
         } catch (e: Exception) {
-            Log.e(TAG, "Error adding entry", e)
-            ""
+            if (isCancellationException(e)) {
+                throw CancellationException("Add entry cancelled")
+            } else {
+                Log.e(TAG, "Error adding entry", e)
+                ""
+            }
         }
     }
 
@@ -91,8 +100,12 @@ class ExpenseRepository {
             updateBudgetSpending(entry.userId)
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error updating entry", e)
-            false
+            if (isCancellationException(e)) {
+                throw CancellationException("Update entry cancelled")
+            } else {
+                Log.e(TAG, "Error updating entry", e)
+                false
+            }
         }
     }
 
@@ -102,8 +115,12 @@ class ExpenseRepository {
             updateBudgetSpending(entry.userId)
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error deleting entry", e)
-            false
+            if (isCancellationException(e)) {
+                throw CancellationException("Delete entry cancelled")
+            } else {
+                Log.e(TAG, "Error deleting entry", e)
+                false
+            }
         }
     }
 
@@ -124,8 +141,12 @@ class ExpenseRepository {
                 .await()
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error setting budget", e)
-            false
+            if (isCancellationException(e)) {
+                throw CancellationException("Set monthly budget cancelled")
+            } else {
+                Log.e(TAG, "Error setting budget", e)
+                false
+            }
         }
     }
 
@@ -148,8 +169,12 @@ class ExpenseRepository {
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting budget", e)
-            null
+            if (isCancellationException(e)) {
+                throw CancellationException("Get current budget cancelled")
+            } else {
+                Log.e(TAG, "Error getting budget", e)
+                null
+            }
         }
     }
 
@@ -166,7 +191,11 @@ class ExpenseRepository {
                 budgetDoc.update("currentSpending", currentSpending)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error updating budget spending", e)
+            if (isCancellationException(e)) {
+                throw CancellationException("Update budget spending cancelled")
+            } else {
+                Log.e(TAG, "Error updating budget spending", e)
+            }
         }
     }
 
@@ -194,8 +223,12 @@ class ExpenseRepository {
                 } else null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting entries for current month", e)
-            emptyList()
+            if (isCancellationException(e)) {
+                throw CancellationException("Get entries for current month cancelled")
+            } else {
+                Log.e(TAG, "Error getting entries for current month", e)
+                emptyList()
+            }
         }
     }
 
@@ -216,8 +249,12 @@ class ExpenseRepository {
                 .await()
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error saving chat message", e)
-            false
+            if (isCancellationException(e)) {
+                throw CancellationException("Save chat message cancelled")
+            } else {
+                Log.e(TAG, "Error saving chat message", e)
+                false
+            }
         }
     }
 
@@ -240,8 +277,23 @@ class ExpenseRepository {
                 )
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting chat messages", e)
-            emptyList()
+            if (isCancellationException(e)) {
+                throw CancellationException("Get chat messages cancelled")
+            } else {
+                Log.e(TAG, "Error getting chat messages", e)
+                emptyList()
+            }
         }
+    }
+
+    private fun isCancellationException(throwable: Throwable?): Boolean {
+        var t = throwable
+        while (t != null) {
+            if (t is CancellationException) {
+                return true
+            }
+            t = t.cause
+        }
+        return false
     }
 }

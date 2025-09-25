@@ -3,6 +3,7 @@ package com.example.smartdailyexpensetracker
 import android.util.Log
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
+import kotlinx.coroutines.CancellationException
 
 class GeminiAIService {
     private val model by lazy {
@@ -23,8 +24,12 @@ class GeminiAIService {
             val response = model.generateContent(content { text(prompt) })
             response.text ?: "No advice available"
         } catch (e: Exception) {
-            Log.e("GeminiAIService", "Error getting advice", e)
-            "Error getting AI advice"
+            if (isCancellationException(e)) {
+                throw CancellationException("AI advice generation cancelled")
+            } else {
+                Log.e("GeminiAIService", "Error getting advice", e)
+                "Error getting AI advice"
+            }
         }
     }
 
@@ -33,8 +38,23 @@ class GeminiAIService {
             val response = model.generateContent(content { text(message) })
             response.text ?: "No response"
         } catch (e: Exception) {
-            Log.e("GeminiAIService", "Error in chat", e)
-            "Error in AI chat"
+            if (isCancellationException(e)) {
+                throw CancellationException("AI chat cancelled")
+            } else {
+                Log.e("GeminiAIService", "Error in chat", e)
+                "Error in AI chat"
+            }
         }
+    }
+
+    private fun isCancellationException(throwable: Throwable?): Boolean {
+        var t = throwable
+        while (t != null) {
+            if (t is CancellationException) {
+                return true
+            }
+            t = t.cause
+        }
+        return false
     }
 }

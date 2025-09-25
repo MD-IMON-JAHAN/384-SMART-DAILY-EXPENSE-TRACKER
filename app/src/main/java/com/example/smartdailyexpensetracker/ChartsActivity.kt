@@ -7,6 +7,7 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -25,6 +26,8 @@ class ChartsActivity : AppCompatActivity() {
     private var weeklyBreakdownText: TextView? = null
     private var budgetProgressText: TextView? = null
 
+    private var loadDataJob: Job? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_charts)
@@ -32,16 +35,20 @@ class ChartsActivity : AppCompatActivity() {
         // Set up Toolbar
         val toolbar = findViewById<Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true) // Enable back icon
-        supportActionBar?.title = "Charts" // Set title to "Charts"
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.title = "Charts"
 
         initializeViews()
         setupObservers()
 
-        lifecycleScope.launch {
-            expenseViewModel.loadEntries()
-            expenseViewModel.loadBudget()
-        }
+        // Load data when activity is created
+        loadData()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Cancel the job when activity is destroyed to prevent memory leaks
+        loadDataJob?.cancel()
     }
 
     override fun onSupportNavigateUp(): Boolean {
@@ -75,7 +82,24 @@ class ChartsActivity : AppCompatActivity() {
         }
     }
 
-    // ... (in the updateStatistics method, ensure proper filtering)
+    private fun loadData() {
+        // Cancel any previous loading job
+        loadDataJob?.cancel()
+
+        loadDataJob = lifecycleScope.launch {
+            try {
+                expenseViewModel.loadEntries()
+                expenseViewModel.loadBudget()
+            } catch (e: Exception) {
+                // Handle cancellation gracefully - don't show errors if it's just cancellation
+                if (e is kotlinx.coroutines.CancellationException) {
+                    // This is normal when navigating away, don't log as error
+                    return@launch
+                }
+                // Log other errors if needed
+            }
+        }
+    }
 
     private fun updateStatistics(entries: List<Entry>, budget: Budget?) {
         val totalIncome = entries.filter { it.type == "income" }.sumOf { it.amount }
@@ -104,8 +128,10 @@ class ChartsActivity : AppCompatActivity() {
             .sortedByDescending { it.second }
 
         val breakdown = StringBuilder("📊 Category Breakdown:\n\n")
+        val totalAmount = entries.sumOf { it.amount }
+
         categoryTotals.forEach { (category, total) ->
-            val percentage = (total / entries.sumOf { it.amount } * 100).toInt()
+            val percentage = if (totalAmount > 0) (total / totalAmount * 100).toInt() else 0
             val bar = "█".repeat((percentage / 5).coerceAtLeast(1))
             breakdown.append("$bar $category: $${"%.2f".format(total)} ($percentage%)\n\n")
         }
@@ -128,10 +154,12 @@ class ChartsActivity : AppCompatActivity() {
             }
         }
 
+        val maxAmount = dailyTotals.values.maxOrNull() ?: 1.0
         val breakdown = StringBuilder("📅 Last 7 Days:\n\n")
+
         last7Days.forEach { date ->
             val total = dailyTotals[date] ?: 0.0
-            val barLength = ((total / (dailyTotals.values.maxOrNull() ?: 1.0)) * 10).toInt().coerceAtLeast(1)
+            val barLength = ((total / maxAmount) * 10).toInt().coerceAtLeast(0).coerceAtMost(10)
             val bar = "█".repeat(barLength)
             breakdown.append("$bar $date: $${"%.2f".format(total)}\n\n")
         }
@@ -142,11 +170,17 @@ class ChartsActivity : AppCompatActivity() {
     private fun updateBudgetProgress(entries: List<Entry>, budget: Budget?) {
         if (budget == null) {
             budgetProgressText?.text = "💰 Budget Progress:\n\nNo budget set yet"
+            budgetProgressText?.setTextColor(Color.GRAY)
             return
         }
 
         val totalExpense = entries.filter { it.type == "expense" }.sumOf { it.amount }
-        val percentageUsed = (totalExpense / budget.monthlyBudget * 100).toInt()
+        val percentageUsed = if (budget.monthlyBudget > 0) {
+            (totalExpense / budget.monthlyBudget * 100).toInt().coerceAtMost(100)
+        } else {
+            0
+        }
+
         val remaining = budget.monthlyBudget - totalExpense
 
         val progressBar = when {

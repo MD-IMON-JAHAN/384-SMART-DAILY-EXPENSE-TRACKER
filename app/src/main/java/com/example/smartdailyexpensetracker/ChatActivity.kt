@@ -6,23 +6,26 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ProgressBar
-import androidx.activity.viewModels // FIXED: Added import for viewModels
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 class ChatActivity : AppCompatActivity() {
 
-    private val expenseViewModel: ExpenseViewModel by viewModels { ExpenseViewModelFactory(application) } // FIXED: viewModels resolved
+    private val expenseViewModel: ExpenseViewModel by viewModels { ExpenseViewModelFactory(application) }
 
     private lateinit var chatRecyclerView: RecyclerView
     private lateinit var messageInput: EditText
     private lateinit var sendButton: Button
     private lateinit var loadingProgressBar: ProgressBar
     private lateinit var chatAdapter: ChatAdapter
+
+    private var loadChatJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,20 +34,15 @@ class ChatActivity : AppCompatActivity() {
         // Set up Toolbar
         val toolbar = findViewById<Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true) // Enable back icon
-        supportActionBar?.title = "AI Assistant" // Set title to "AI Assistant"
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        supportActionBar?.title = "AI Assistant"
 
         initializeViews()
         setupRecyclerView()
         setupObservers()
         setupClickListeners()
-    }
 
-    override fun onStart() {
-        super.onStart()
-        lifecycleScope.launch {
-            expenseViewModel.loadChatHistory()
-        }
+        loadChatHistory()
     }
 
     override fun onSupportNavigateUp(): Boolean {
@@ -55,6 +53,7 @@ class ChatActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         chatRecyclerView.adapter = null
+        loadChatJob?.cancel()
     }
 
     private fun initializeViews() {
@@ -135,6 +134,19 @@ class ChatActivity : AppCompatActivity() {
             expenseViewModel.sendChatMessage(message)
             messageInput.text.clear()
             sendButton.isEnabled = false
+        }
+    }
+
+    private fun loadChatHistory() {
+        loadChatJob?.cancel()
+        loadChatJob = lifecycleScope.launch {
+            try {
+                expenseViewModel.loadChatHistory()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Ignore cancellation
+            } catch (e: Exception) {
+                // Handle other errors
+            }
         }
     }
 }
