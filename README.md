@@ -55,6 +55,11 @@
 # \- \*\*Budget Progress\*\*: Monitor budget utilization with progress bars
 
 # 
+# \###🎨 Theme Customization
+
+# \- \*\*Toggle Theme\*\*: Switch between light and dark modes for a personalized viewing experience
+
+#
 
 # \### 🔐 Secure \& Cloud-Synced
 
