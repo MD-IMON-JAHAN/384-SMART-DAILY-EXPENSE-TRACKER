@@ -8,7 +8,7 @@ import kotlinx.coroutines.CancellationException
 class GeminiAIService {
     private val model by lazy {
         GenerativeModel(
-            modelName = "gemini-1.5-flash",
+            modelName = "gemini-2.5-flash-lite",
             apiKey = "xxxxxxxxxxxxxxxxxxxxx" // Replace with your actual API key privacy issue
         )
     }
